@@ -323,6 +323,12 @@ function setProp(DOM, key, value) {
   }
 }
 
+function bindRef(fiber) {
+  if (fiber.props.hasOwnProperty("ref")) {
+    fiber.props.ref.current = fiber.stateNode;
+  }
+}
+
 function updateClassComponent(fiber) {
   if (!fiber.stateNode) {
     //类组件的stateNode不是真实DOM节点
@@ -335,6 +341,7 @@ function updateClassComponent(fiber) {
     fiber.updateQueue = new UpdateQueue();
   }
 
+  bindRef(fiber);
   //给组件实例的state赋值
   //新的state = 调用更新队列更新，将老的state传进去
   //会在更新队列都更新合并后返回新的state
@@ -372,6 +379,9 @@ function updateHostComponent(fiber) {
   if (!fiber.stateNode) {
     fiber.stateNode = createDOM(fiber);
   }
+
+  bindRef(fiber);
+
   const children = fiber && fiber.props && fiber.props.children;
   // 调度子节点
   reconcileChildren(fiber, children);
@@ -435,6 +445,9 @@ function commit(workEffect) {
   const type = typeof workEffect.type;
 
   if (effectTag === "DELETION") {
+    if(workEffect.hooks) {
+      cleanupHooks(workEffect.hooks.list);
+    }
     nearestParentDOM.removeChild(nearestChildDOM);
   } else if (type === "function") {
     //如果是函数组件或者类组件
@@ -465,6 +478,14 @@ function commit(workEffect) {
   workEffect.effectTag = null;
   //最后返回下一个Effect
   return workEffect.nextEffect;
+}
+
+function cleanupHooks(hooks) {
+  while(hooks.length > 0) {
+    const hook = hooks.shift();
+    const cleanup = hook.cleanup;
+    cleanup && cleanup();
+  }
 }
 
 function runSideEffect(effects) {

@@ -88,7 +88,7 @@ export const useCallback = (cb, deps) => {
 }
 
 export const useRef = (current) => {
-  return useMemo(() => { current }, []);
+  return useMemo(() => ({ current }), []);
 }
 
 export const useEffect = (cb, deps) => {

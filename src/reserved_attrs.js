@@ -1,1 +1,1 @@
-export const reservedAttrs = ["children", "key"];
+export const reservedAttrs = ["children", "key", "ref"];

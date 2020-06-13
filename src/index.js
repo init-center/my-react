@@ -22,9 +22,19 @@ class Component {
   }
 }
 
+
+function createRef() {
+  const refObject = {
+    current: null
+  };
+
+  return refObject;
+}
+
 const React = {
   createElement,
-  Component
+  Component,
+  createRef
 };
 
 export default React;

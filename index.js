@@ -1,5 +1,5 @@
 import React from "./src/index";
-import { useReducer, useState, useEffect, useLayoutEffect, useMemo, useCallback } from "./src/hooks";
+import { useReducer, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "./src/hooks";
 import ReactDOM from "./src/react-dom";
 
 
@@ -73,11 +73,13 @@ const Element4 = (props) => {
 
   const computeCount = useMemo(() => {
     return count * 2;
-  },[count === 110])
+  },[count === 110]);
 
   const cacheCb = useCallback(() => {
     console.log(count);
-  }, [count])
+  }, [count]);
+
+  const ref1 = useRef();
 
   return (
     <div>
@@ -85,7 +87,8 @@ const Element4 = (props) => {
       <div onClick={() => setCount(count + 1)}>{count}</div>
       <div>computeCount:{computeCount}</div>
       <div onClick={() => setCount2(count2 + 2)}>{count2}</div>
-      <button onClick={() => cacheCb()}>cacheCb</button>
+      <button onClick={() => cacheCb()} ref={ref1}>cacheCb</button>
+      <button onClick={() => ref1.current.style.color = "red"}>change Ref's color</button>
     </div>
   )
 }
