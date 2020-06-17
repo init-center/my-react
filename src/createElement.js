@@ -15,7 +15,8 @@ export const createElement = (type, attrs = {}, ...children) => {
       ...attrs,
       //这里为了后续方便处理，将字符串统一生成为对象的形式
       children: children.map(child => {
-        return typeof child === "string" || typeof child === "number" ? createTextElement(child) : child;
+        //处理字符串和数字为字符串类型
+        return (typeof child === "string" || typeof child === "number") ? createTextElement(child) : child;
       }) || []
     }
   };

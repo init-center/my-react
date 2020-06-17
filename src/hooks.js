@@ -68,7 +68,7 @@ export const useMemo = (cb, deps) => {
   const WIPFiber = getWIPFiber();
   const oldHook = getHook(WIPFiber, cursor);
   let newHook = oldHook;
-  if(oldHook) {
+  if (oldHook) {
     if (isChanged(oldHook.deps, deps)) {
       oldHook.deps = deps;
       oldHook.state = cb();
@@ -88,11 +88,17 @@ export const useCallback = (cb, deps) => {
 }
 
 export const useRef = (current) => {
-  return useMemo(() => ({ current }), []);
+  return useMemo(() => ({
+    current
+  }), []);
+}
+
+export const useContext = (context) => {
+  return context && context.Provider && context.Provider.currentValue;
 }
 
 export const useEffect = (cb, deps) => {
-  effectImpl(cb, deps ,"effects");
+  effectImpl(cb, deps, "effects");
 }
 
 export const useLayoutEffect = (cb, deps) => {

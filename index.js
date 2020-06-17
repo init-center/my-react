@@ -1,8 +1,16 @@
-import React from "./src/index";
-import { useReducer, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "./src/hooks";
+import React, { createContext, createRef } from "./src/index";
+import { 
+  useReducer, 
+  useState, 
+  useEffect, 
+  useLayoutEffect, 
+  useMemo, 
+  useCallback,
+  useContext, 
+  useRef } from "./src/hooks";
 import ReactDOM from "./src/react-dom";
 
-
+const TestContext = createContext(null);
 
 const Element = (
   <div class="wrapper">
@@ -22,14 +30,24 @@ const Element2 = (
 );
 
 class Element3 extends React.Component {
+  static contextType = TestContext;
   constructor(props) {
     super(props);
     this.state = {...props};
+    this.aRef = createRef();
   }
 
   render() {
+    const n = this.context;
     return (
-      <div onclick={() =>this.clickHandle()}>{this.state.number}</div>
+      // <TestContext.Consumer>
+      //   {
+      //     (value) => {
+      //       return <div ref={this.aRef} onClick={() => { console.log(this.aRef.current.innerText=value+1) }}>{value}</div>;
+      //     }
+      //   }
+      // </TestContext.Consumer>
+      <div class="contextTypeTest" onClick={() => { this.clickHandle() }}>{this.state.number}</div>
     )
   }
 
@@ -80,6 +98,10 @@ const Element4 = (props) => {
   }, [count]);
 
   const ref1 = useRef();
+  const contextObj = {
+    count2,
+    setCount2
+  };
 
   return (
     <div>
@@ -87,10 +109,29 @@ const Element4 = (props) => {
       <div onClick={() => setCount(count + 1)}>{count}</div>
       <div>computeCount:{computeCount}</div>
       <div onClick={() => setCount2(count2 + 2)}>{count2}</div>
+      <TestContext.Provider value={contextObj}>
+        <Element3 number={3}/>
+        <Element5/>
+        <Element6/>
+      </TestContext.Provider>
       <button onClick={() => cacheCb()} ref={ref1}>cacheCb</button>
       <button onClick={() => ref1.current.style.color = "red"}>change Ref's color</button>
     </div>
   )
+}
+
+
+const Element5 = () => {
+  const contextObj = useContext(TestContext);
+  return <div class="test-use-context" onClick={() => { contextObj.setCount2(contextObj.count2+1) }}>{contextObj.count2}</div>
+}
+
+class Element6 extends React.Component {
+  static contextType = TestContext;
+
+  render() {
+    return <div onClick={() => { this.context.setCount2(this.context.count2 + 1) }}>{this.context.count2}</div>
+  }
 }
 
 

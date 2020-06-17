@@ -13,6 +13,7 @@ import {
 import {
   resetCursor
 } from "./hooks";
+import { createTextElement } from "./createElement";
 
 // 正在调度的工作Root
 let workInProgressRoot = null;
@@ -90,6 +91,18 @@ function completeUnitOfWork(completeFiber) {
 }
 
 function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag) {
+  const parentFiberIsContextConsumer = parentFiber.type && parentFiber.type._isContextConsumer;
+  if (parentFiberIsContextConsumer) {
+    if(typeof newChild !== "function") {
+      console.error("The child node of the Consumer component must be a function!");
+      return;
+    }
+  }
+  
+  if(typeof newChild === "function") {
+    newChild = newChild(parentFiberIsContextConsumer ? parentFiber.stateNode.currentValue.value : undefined);
+    newChild = (typeof newChild === "string" || typeof newChild === "number") ? createTextElement(newChild) : newChild;
+  }
   let newFiber = {
     type: newChild.type,
     props: newChild.props,
@@ -330,6 +343,9 @@ function bindRef(fiber) {
 }
 
 function updateClassComponent(fiber) {
+  if(fiber.stateNode && fiber.stateNode.shouldComponentUpdate && !fiber.stateNode.shouldComponentUpdate()) {
+    return;
+  }
   if (!fiber.stateNode) {
     //类组件的stateNode不是真实DOM节点
     //而是组件的实例（也就是fiber.type的实例，fiber.type是一个类）
@@ -340,6 +356,13 @@ function updateClassComponent(fiber) {
     //同时，要给类组件的Fiber上挂载updateQueue
     fiber.updateQueue = new UpdateQueue();
   }
+
+  //如果是复用的旧实例，还要更新上面的props
+  fiber.stateNode.props = fiber.props;
+  //设置context为contextType
+  fiber.stateNode.context = (fiber.stateNode.constructor.contextType &&
+    fiber.stateNode.constructor.contextType.Provider &&
+    fiber.stateNode.constructor.contextType.Provider.currentValue);
 
   bindRef(fiber);
   //给组件实例的state赋值
@@ -437,9 +460,9 @@ function performUnitOfWork(fiber) {
 function commit(workEffect) {
   //首先拿到父Fiber对应的DOM
   const nearestParentDOMFiber = getNearestParentDOMFiber(workEffect.parentFiber);
-  const nearestParentDOM = nearestParentDOMFiber.stateNode;
+  const nearestParentDOM = nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
   const nearestChildDOMFiber = getNearestChildDOMFiber(workEffect);
-  const nearestChildDOM = nearestChildDOMFiber.stateNode;
+  const nearestChildDOM = nearestChildDOMFiber && nearestChildDOMFiber.stateNode;
 
   const effectTag = workEffect.effectTag;
   const type = typeof workEffect.type;
@@ -448,7 +471,11 @@ function commit(workEffect) {
     if(workEffect.hooks) {
       cleanupHooks(workEffect.hooks.list);
     }
-    nearestParentDOM.removeChild(nearestChildDOM);
+    if(workEffect.stateNode && workEffect.stateNode.componentWillUnmount) {
+      workEffect.stateNode.componentWillUnmount();
+    }
+
+    nearestParentDOM && nearestParentDOM.removeChild(nearestChildDOM);
   } else if (type === "function") {
     //如果是函数组件或者类组件
     //没有DOM 它们只需要调用副作用即可
@@ -462,6 +489,14 @@ function commit(workEffect) {
       }, { timeout: 500 });
     }
 
+    if (workEffect.stateNode && workEffect.stateNode.componentDidMount && workEffect.effectTag === "PLACEMENT" && !workEffect.alternate) {
+      workEffect.stateNode.componentDidMount();
+    }
+
+    if (workEffect.stateNode && workEffect.stateNode.componentDidUpdate && workEffect.effectTag === "UPDATE" && workEffect.alternate) {
+      workEffect.stateNode.componentDidUpdate();
+    }
+
   } else if (effectTag === "UPDATE") {
     if (workEffect.type === "TEXT_ELEMENT") {
       if (workEffect.alternate.props.value !== workEffect.props.value) {
@@ -471,7 +506,7 @@ function commit(workEffect) {
       updateDOM(workEffect.stateNode, workEffect.alternate.props, workEffect.props);
     }
   } else {
-    nearestParentDOM.appendChild(nearestChildDOM);
+    nearestParentDOM && nearestParentDOM.appendChild(nearestChildDOM);
   }
 
   //最后还要将当前fiber的effectTag清空
