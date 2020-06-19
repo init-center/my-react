@@ -16,13 +16,14 @@ class Component {
   static getDerivedStateFromProps(nextProps, prevState) {
     //返回null或者一个对象，和本来的state合并（放入到updateQueue中还是直接改变再研究看看）
     //在 shouldComponentUpdate和render（组件自己的render，不是react-dom的render）之前调用
-
+    //console.log("getDerivedState")
   }
 
   componentDidMount() {
   }
 
   shouldComponentUpdate(nextProps, nextState) {
+    //console.log("shouldComponentUpdate")
     return true;
   }
 
@@ -35,6 +36,7 @@ class Component {
   }
 
   componentDidUpdate(prevProps, prevState, info) {
+    //console.log("componentDidUpdate")
   }
 
   componentWillUnmount() {

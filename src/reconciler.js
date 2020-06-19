@@ -13,7 +13,11 @@ import {
 import {
   resetCursor
 } from "./hooks";
-import { createTextElement } from "./createElement";
+import {
+  createTextElement
+} from "./createElement";
+
+import shallowEqual from "./shallowEqual";
 
 // 正在调度的工作Root
 let workInProgressRoot = null;
@@ -22,6 +26,9 @@ let nextUnitOfWork = null;
 // 当前正在使用的RootFiber，也就是渲染结束后当前页面上的DOM对应的rootFiber
 // 这个需要渲染（commit）成功之后再赋值， 简单来说，这个用来保存老的rootFiber
 let currentRoot = null;
+
+//是否应该更新
+let shouldRender = null;
 
 //用来存储删除的节点
 //因为新老节点比较，如果新节点无法和老节点对应
@@ -40,6 +47,10 @@ export function getWIPFiber() {
 
 
 function completeUnitOfWork(completeFiber) {
+  //自身完成的时候要将自己的type从shouldRender上面清除
+  if(shouldRender === completeFiber.type) {
+    shouldRender = null;
+  }
   // 收集副作用
   //首先拿到父fiber
   const returnFiber = completeFiber.parentFiber;
@@ -70,7 +81,10 @@ function completeUnitOfWork(completeFiber) {
     //也就是父fiber的lastEffect后面（本质上就是自己的lastEffect后面，但是自己的lastEffect已经赋值给了父fiber的lastEffect）
 
     //在挂载之前要先判断自己有没有effectTag，只有有effectTag才需要更新
-    if (completeFiber.effectTag) {
+    //这里加上SCU进行判断的原因是
+    //当SCU为false时，自己是不需要更新（commit）的
+    //自己不会执行componentDidUpdate方法
+    if (completeFiber.effectTag && completeFiber.SCU) {
       //要先判断父fiber有没有firstEffect和lastEffect
       //因为可能自己是最里面的节点，没有子节点了，那么自己也没有lastEffect和firstEffect
       //自己的兄弟节点也没有firstEffect和lastEffect，所以即使进行了上面的步骤
@@ -93,13 +107,13 @@ function completeUnitOfWork(completeFiber) {
 function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag) {
   const parentFiberIsContextConsumer = parentFiber.type && parentFiber.type._isContextConsumer;
   if (parentFiberIsContextConsumer) {
-    if(typeof newChild !== "function") {
+    if (typeof newChild !== "function") {
       console.error("The child node of the Consumer component must be a function!");
       return;
     }
   }
-  
-  if(typeof newChild === "function") {
+
+  if (typeof newChild === "function") {
     newChild = newChild(parentFiberIsContextConsumer ? parentFiber.stateNode.currentValue.value : undefined);
     newChild = (typeof newChild === "string" || typeof newChild === "number") ? createTextElement(newChild) : newChild;
   }
@@ -112,7 +126,8 @@ function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag
     effectTag: effectTag,
     updateQueue: reusable && oldFiber.updateQueue ? oldFiber.updateQueue : typeof newChild.type === "function" ? new UpdateQueue() : null,
     index: index,
-    nextEffect: null
+    nextEffect: null,
+    SCU: true
   };
 
   return newFiber;
@@ -343,9 +358,7 @@ function bindRef(fiber) {
 }
 
 function updateClassComponent(fiber) {
-  if(fiber.stateNode && fiber.stateNode.shouldComponentUpdate && !fiber.stateNode.shouldComponentUpdate()) {
-    return;
-  }
+  
   if (!fiber.stateNode) {
     //类组件的stateNode不是真实DOM节点
     //而是组件的实例（也就是fiber.type的实例，fiber.type是一个类）
@@ -357,22 +370,95 @@ function updateClassComponent(fiber) {
     fiber.updateQueue = new UpdateQueue();
   }
 
-  //如果是复用的旧实例，还要更新上面的props
-  fiber.stateNode.props = fiber.props;
   //设置context为contextType
+  //在这里设置而不是在组件实例内部的构造器中设置
+  //是因为复用实例时不会执行构造函数，但是每次更新都要同步更新的context
+  //不能让context一直是实例构建时获取的初始值
   fiber.stateNode.context = (fiber.stateNode.constructor.contextType &&
     fiber.stateNode.constructor.contextType.Provider &&
     fiber.stateNode.constructor.contextType.Provider.currentValue);
 
   bindRef(fiber);
+
+
+  // 保存旧的props
+  const oldProps = fiber.stateNode.props;
+  //如果是复用的旧实例，还要更新上面的props
+  fiber.stateNode.props = fiber.props;
+
+  //保存旧的state
+  const oldState = fiber.stateNode.state;
   //给组件实例的state赋值
   //新的state = 调用更新队列更新，将老的state传进去
   //会在更新队列都更新合并后返回新的state
   fiber.stateNode.state = fiber.updateQueue.forceUpdate(fiber.stateNode.state);
 
-  //类组件需要调用实例的render方法才能获得它的子节点
-  //所以要获取它的render方法
-  const child = fiber.stateNode.render();
+  //简单比较state和props是否有改变
+   const shouldUpdate = !shallowEqual(oldProps, fiber.stateNode.props) || !shallowEqual(oldState, fiber.stateNode.state);
+
+  function runGetDerivedStateFromProps() {
+    //getDerivedState运行在SCU和render之前
+    //它的参数为nextProps以及prevState
+    //prevState是本次setState完成之后的state
+    if (fiber.stateNode.constructor.getDerivedStateFromProps) {
+      const nextProps = fiber.stateNode.props;
+      const prevState = fiber.stateNode.state;
+      const returnState = fiber.stateNode.constructor.getDerivedStateFromProps(nextProps, prevState);
+      if (returnState) {
+        fiber.stateNode.state = {
+          ...fiber.stateNode.state,
+          ...returnState
+        };
+      }
+    }
+  }
+  //SCU返回false时虽然不执行render以及处理子节点的更新
+  //但是它自身的state和props还是要修改的
+  //所以把SCU放到这位置，上面已经进行了更新，但是到这里这里直接返回
+  //不处理后面
+  let child = null;
+  const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
+  const notFirstReconcile = fiber.alternate;
+
+  //非第一次渲染
+  if(notFirstReconcile) {
+    //state或props有变化的情况
+    if(shouldUpdate) {
+      //更新了自然要运行getDerivedStateFromProps
+      runGetDerivedStateFromProps();
+      //自身的state和props有变化是不管父组件的
+      //这种情况只要考虑SCU的返回是false还是true
+      if((haveSCU && fiber.stateNode.shouldComponentUpdate()) || (!haveSCU)) {
+        //当自身的状态改变，同时shouldRender无值时
+        //将自身的type赋给shouldRender
+        if (!shouldRender) {
+          shouldRender = fiber.type;
+        }
+        child = fiber.stateNode.render();
+      } else if(haveSCU && !fiber.stateNode.shouldComponentUpdate()) {
+        child = fiber.alternate.currentChildVNode;
+        fiber.SCU = false;
+      }
+    } else {
+      //state或props无变化的情况
+      //这种情况就复杂一点，因为可能自身无变化但是父组件render了
+      //这样的情况子组件也要render
+      //同样的，getDerivedStateFromProps和shouldComponentUpdate也要酌情考虑是否要运行
+      if(shouldRender) {
+        child = fiber.state.render();
+      } else {
+        child = fiber.alternate.currentChildVNode;
+        fiber.SCU = false;
+      }
+    }
+
+  } else {
+    //第一次渲染
+    child = fiber.stateNode.render();
+  }
+
+  fiber.currentChildVNode = child;
+  
   //组件只有一个最外层元素，顶层必须用一个标签包裹，
   //所以只有一个子节点
   //我们给这个子节点包装成数组
@@ -468,10 +554,10 @@ function commit(workEffect) {
   const type = typeof workEffect.type;
 
   if (effectTag === "DELETION") {
-    if(workEffect.hooks) {
+    if (workEffect.hooks) {
       cleanupHooks(workEffect.hooks.list);
     }
-    if(workEffect.stateNode && workEffect.stateNode.componentWillUnmount) {
+    if (workEffect.stateNode && workEffect.stateNode.componentWillUnmount) {
       workEffect.stateNode.componentWillUnmount();
     }
 
@@ -479,14 +565,16 @@ function commit(workEffect) {
   } else if (type === "function") {
     //如果是函数组件或者类组件
     //没有DOM 它们只需要调用副作用即可
-    if(workEffect.hooks && workEffect.hooks.layouts) {
+    if (workEffect.hooks && workEffect.hooks.layouts) {
       runSideEffect(workEffect.hooks.layouts);
     }
 
     if (workEffect.hooks && workEffect.hooks.effects) {
       requestIdleCallback(() => {
         runSideEffect(workEffect.hooks.effects);
-      }, { timeout: 500 });
+      }, {
+        timeout: 500
+      });
     }
 
     if (workEffect.stateNode && workEffect.stateNode.componentDidMount && workEffect.effectTag === "PLACEMENT" && !workEffect.alternate) {
@@ -516,7 +604,7 @@ function commit(workEffect) {
 }
 
 function cleanupHooks(hooks) {
-  while(hooks.length > 0) {
+  while (hooks.length > 0) {
     const hook = hooks.shift();
     const cleanup = hook.cleanup;
     cleanup && cleanup();
