@@ -28,14 +28,18 @@ class Component {
   }
 
   getSnapshotBeforeUpdate() {
-    //render以后会触发
-    //如果jsx产生了Dom改变，就会触发这个方法，这个方法的返回会传递给
+    //render以后会触发，但是render之后还没有更新DOM，所以可以获取老DOM的状态
+    //比如获取DOM的滚动位置，获取之后
+    //这个方法的返回会传递给
     //componentDidUpdate
     //传给它作为第三个参数（info），info是可选的，有就传没有就不传
 
   }
 
-  componentDidUpdate(prevProps, prevState, info) {
+  componentDidUpdate(prevProps, prevState, snapshot) {
+    //prevProps和prevState都是更新之前的没错
+    //第三个参数是getSnapshotBeforeUpdate的返回值
+    //因为DidUpdate是在更新完DOM之后才会触发，这时可以通过snapshot来改变DOM的状态之类的
     //console.log("componentDidUpdate")
   }
 
@@ -57,6 +61,10 @@ export function createRef() {
     current: null
   };
   return refObject;
+}
+
+export function Fragment(props) {
+  return props.children;
 }
 
 export function createContext(defaultValue) {

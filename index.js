@@ -1,4 +1,4 @@
-import React, { createContext, createRef } from "./src/index";
+import React, { createContext, createRef, Fragment } from "./src/index";
 import { 
   useReducer, 
   useState, 
@@ -21,14 +21,18 @@ class Element extends React.Component {
 
   shouldComponentUpdate() {
     console.log("shouldComponentUpdate Element")
-    return true;
+    return false;
   }
 
   static getDerivedStateFromProps() {
     console.log('getDerivedStateFromProps Element')
   }
 
-  componentDidUpdate() {
+  componentDidMount() {
+    console.log("componentDidMount Element");
+  }
+
+  componentDidUpdate(a, b) {
     console.log("componentDidUpdate Element")
   }
 
@@ -36,7 +40,10 @@ class Element extends React.Component {
     console.log("render Element");
     const {a, b} = this.state;
     return (
-      <div>
+      <div onClick={() => {this.setState({
+        a: this.state.a + 1,
+        b: this.state.b + 1
+      })}}>
         <Element2 a={a} b={b}/>
       </div>
     );
@@ -54,7 +61,11 @@ class Element2 extends React.Component {
 
   shouldComponentUpdate() {
     console.log("shouldComponentUpdate Element2")
-    return true;
+    return false;
+  }
+
+  componentDidMount() {
+    console.log("componentDidMount Element2");
   }
 
   static getDerivedStateFromProps() {
@@ -68,16 +79,16 @@ class Element2 extends React.Component {
   render() {
     console.log("render Element2")
     return (
-      <div div onClick = {
+      <div /*onClick = {
         () => {
           this.setState({
             a: this.state.a + 1,
             b: this.state.b + 1
           })
         }
-      } >
-        <div>{this.state.a}</div>
-        <div>{this.state.b}</div>
+      }*/ >
+        <div>{this.props.a}</div>
+        <div>{this.props.b}</div>
       </div>
       );
   }

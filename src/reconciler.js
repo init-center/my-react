@@ -384,62 +384,89 @@ function updateClassComponent(fiber) {
   // 保存旧的props
   const oldProps = fiber.stateNode.props;
   //如果是复用的旧实例，还要更新上面的props
-  fiber.stateNode.props = fiber.props;
+  let newProps = fiber.props;
 
   //保存旧的state
   const oldState = fiber.stateNode.state;
   //给组件实例的state赋值
   //新的state = 调用更新队列更新，将老的state传进去
   //会在更新队列都更新合并后返回新的state
-  fiber.stateNode.state = fiber.updateQueue.forceUpdate(fiber.stateNode.state);
+  let newState = fiber.updateQueue.forceUpdate(oldState);
 
   //简单比较state和props是否有改变
-   const shouldUpdate = !shallowEqual(oldProps, fiber.stateNode.props) || !shallowEqual(oldState, fiber.stateNode.state);
+   const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
 
   function runGetDerivedStateFromProps() {
     //getDerivedState运行在SCU和render之前
     //它的参数为nextProps以及prevState
-    //prevState是本次setState完成之后的state
+    //prevState是本次setState完成之后的state，不是老的state
+    //这里的prev指的是getDerivedStateFromProps运行之前
     if (fiber.stateNode.constructor.getDerivedStateFromProps) {
-      const nextProps = fiber.stateNode.props;
-      const prevState = fiber.stateNode.state;
+      const nextProps = newProps;
+      const prevState = newState;
       const returnState = fiber.stateNode.constructor.getDerivedStateFromProps(nextProps, prevState);
       if (returnState) {
-        fiber.stateNode.state = {
-          ...fiber.stateNode.state,
+        newState = {
+          ...newState,
           ...returnState
         };
       }
     }
   }
+
+
+  function updateStateAndProps() {
+    //不管怎样，最后都要更新组件实例的props和state为新的props和state
+    //要在render之前执行，这样render里才能拿到最新的state和props进行渲染
+    //但是要在shouldUpdateComponent之后执行，因为在shouldComponentUpdate里
+    //还要使用this.props或者this.state与新值比对，所以在此之前不能更新实例上的props和state
+    fiber.stateNode.props = newProps;
+    fiber.stateNode.state = newState;
+  }
+
+  function runGetSnapshotBeforeUpdate() {
+    return fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
+  }
+
   //SCU返回false时虽然不执行render以及处理子节点的更新
   //但是它自身的state和props还是要修改的
   //所以把SCU放到这位置，上面已经进行了更新，但是到这里这里直接返回
   //不处理后面
   let child = null;
-  const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
   const notFirstReconcile = fiber.alternate;
 
   //非第一次渲染
   if(notFirstReconcile) {
+    //只要不是第一次渲染，都给stateNode挂上旧的props和state
+    fiber.stateNode.oldProps = oldProps;
+    fiber.stateNode.oldState = oldState;
     //state或props有变化的情况
     if(shouldUpdate) {
       //更新了自然要运行getDerivedStateFromProps
       runGetDerivedStateFromProps();
       //自身的state和props有变化是不管父组件的
       //这种情况只要考虑SCU的返回是false还是true
-      if((haveSCU && fiber.stateNode.shouldComponentUpdate()) || (!haveSCU)) {
+      const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
+      //因为在shouldComponentUpdate里需要对新旧props或者新旧state进行比较
+      //所以在运行SCU之前不应该更新组件实例的props和state
+      //要移到后面进行
+      const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
+      //不管怎样都要更新state和props，因为SCU返回false只是不渲染，但是state和props还是要更新的
+      updateStateAndProps();
+      if(shouldComponentUpdateReturn || !haveSCU) {
         //当自身的状态改变，同时shouldRender无值时
         //将自身的type赋给shouldRender
         if (!shouldRender) {
           shouldRender = fiber.type;
         }
         child = fiber.stateNode.render();
-      } else if(haveSCU && !fiber.stateNode.shouldComponentUpdate()) {
+      } else if(!shouldComponentUpdateReturn) {
         child = fiber.alternate.currentChildVNode;
         fiber.SCU = false;
       }
     } else {
+      //不管怎样都要更新state和props，因为SCU返回false只是不渲染，但是state和props还是要更新的
+      updateStateAndProps();
       //state或props无变化的情况
       //这种情况就复杂一点，因为可能自身无变化但是父组件render了
       //这样的情况子组件也要render
@@ -454,6 +481,8 @@ function updateClassComponent(fiber) {
 
   } else {
     //第一次渲染
+    //初次渲染也是要执行getDeFromProps的
+    runGetDerivedStateFromProps();
     child = fiber.stateNode.render();
   }
 
@@ -582,7 +611,7 @@ function commit(workEffect) {
     }
 
     if (workEffect.stateNode && workEffect.stateNode.componentDidUpdate && workEffect.effectTag === "UPDATE" && workEffect.alternate) {
-      workEffect.stateNode.componentDidUpdate();
+      workEffect.stateNode.componentDidUpdate(workEffect.stateNode.oldProps, workEffect.stateNode.oldState, workEffect.stateNode.snapshot);
     }
 
   } else if (effectTag === "UPDATE") {
