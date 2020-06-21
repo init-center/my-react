@@ -16,6 +16,7 @@ function render(element, container) {
   // 需要注意的是rootFiber 对应的是container
   //而不是element
   const rootFiber = {
+    isRootFiber: true,
     stateNode: container,
     props: {
       children: [typeof element === "string" || typeof element === "number" ? createTextElement(element) : element]

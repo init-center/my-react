@@ -21,7 +21,7 @@ class Element extends React.Component {
 
   shouldComponentUpdate() {
     console.log("shouldComponentUpdate Element")
-    return false;
+    return true;
   }
 
   static getDerivedStateFromProps() {
@@ -61,7 +61,7 @@ class Element2 extends React.Component {
 
   shouldComponentUpdate() {
     console.log("shouldComponentUpdate Element2")
-    return false;
+    return true;
   }
 
   componentDidMount() {
@@ -72,12 +72,21 @@ class Element2 extends React.Component {
     console.log('getDerivedStateFromProps Element2')
   }
 
-  componentDidUpdate() {
+  getSnapshotBeforeUpdate() {
+    console.log("getSnapshotBeforeUpdate Element2")
+    return "Element Snapshot"
+  }
+
+
+
+  componentDidUpdate(prevProps, prevState, snapshot) {
     console.log("componentDidUpdate Element2")
+    console.log(prevProps, prevState, snapshot)
   }
 
   render() {
     console.log("render Element2")
+    throw new Error("a Error in Element2")
     return (
       <div /*onClick = {
         () => {

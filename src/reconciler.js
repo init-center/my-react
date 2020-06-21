@@ -424,10 +424,6 @@ function updateClassComponent(fiber) {
     fiber.stateNode.state = newState;
   }
 
-  function runGetSnapshotBeforeUpdate() {
-    return fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
-  }
-
   //SCU返回false时虽然不执行render以及处理子节点的更新
   //但是它自身的state和props还是要修改的
   //所以把SCU放到这位置，上面已经进行了更新，但是到这里这里直接返回
@@ -483,7 +479,24 @@ function updateClassComponent(fiber) {
     //第一次渲染
     //初次渲染也是要执行getDeFromProps的
     runGetDerivedStateFromProps();
-    child = fiber.stateNode.render();
+    try{
+      child = fiber.stateNode.render();
+    }catch(e){
+      console.log(e);
+      getComponentStack(fiber);
+    }
+    
+  }
+
+  function getComponentStack(fiber) {
+    let stack = "";
+    while(fiber) {
+      const isFunctionType = typeof fiber.type === "function";
+      const componentName = isFunctionType ? fiber.type.name : fiber.type;
+      componentName && (stack += ("\n" + "in " + componentName));
+      fiber = fiber.parentFiber;
+    }
+    console.log(stack);
   }
 
   fiber.currentChildVNode = child;
@@ -674,6 +687,21 @@ function commitRoot() {
 
 }
 
+function runGetSnapshotBeforeUpdate(fiber) {
+  if((typeof fiber.type === "function") && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
+    const snapshot = fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
+    fiber.stateNode.snapshot = snapshot;
+  }
+  return fiber.nextEffect;
+}
+
+function getSnapshotBeforeCommit() {
+  let workEffect = workInProgressRoot && workInProgressRoot.firstEffect;
+  while(workEffect) {
+    workEffect = runGetSnapshotBeforeUpdate(workEffect);
+  }
+}
+
 // 调度函数
 // requestIdleCallback会传递deadline进来
 function workLoop(deadline) {
@@ -685,6 +713,7 @@ function workLoop(deadline) {
   }
   // 如果没有工作单元了，则代表render阶段完成，进入commit阶段
   if (!nextUnitOfWork) {
+    getSnapshotBeforeCommit();
     commitRoot();
   } else {
     //否则就是空闲时间不够了，但还有剩余的工作单元，再次调用requestIdleCallback
