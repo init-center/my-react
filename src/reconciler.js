@@ -48,7 +48,7 @@ export function getWIPFiber() {
 
 function completeUnitOfWork(completeFiber) {
   //自身完成的时候要将自己的type从shouldRender上面清除
-  if(shouldRender === completeFiber.type) {
+  if (shouldRender === completeFiber.type) {
     shouldRender = null;
   }
   // 收集副作用
@@ -358,7 +358,7 @@ function bindRef(fiber) {
 }
 
 function updateClassComponent(fiber) {
-  
+
   if (!fiber.stateNode) {
     //类组件的stateNode不是真实DOM节点
     //而是组件的实例（也就是fiber.type的实例，fiber.type是一个类）
@@ -394,7 +394,7 @@ function updateClassComponent(fiber) {
   let newState = fiber.updateQueue.forceUpdate(oldState);
 
   //简单比较state和props是否有改变
-   const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
+  const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
 
   function runGetDerivedStateFromProps() {
     //getDerivedState运行在SCU和render之前
@@ -432,12 +432,12 @@ function updateClassComponent(fiber) {
   const notFirstReconcile = fiber.alternate;
 
   //非第一次渲染
-  if(notFirstReconcile) {
+  if (notFirstReconcile) {
     //只要不是第一次渲染，都给stateNode挂上旧的props和state
     fiber.stateNode.oldProps = oldProps;
     fiber.stateNode.oldState = oldState;
     //state或props有变化的情况
-    if(shouldUpdate) {
+    if (shouldUpdate) {
       //更新了自然要运行getDerivedStateFromProps
       runGetDerivedStateFromProps();
       //自身的state和props有变化是不管父组件的
@@ -449,14 +449,14 @@ function updateClassComponent(fiber) {
       const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
       //不管怎样都要更新state和props，因为SCU返回false只是不渲染，但是state和props还是要更新的
       updateStateAndProps();
-      if(shouldComponentUpdateReturn || !haveSCU) {
+      if (shouldComponentUpdateReturn || !haveSCU) {
         //当自身的状态改变，同时shouldRender无值时
         //将自身的type赋给shouldRender
         if (!shouldRender) {
           shouldRender = fiber.type;
         }
         child = fiber.stateNode.render();
-      } else if(!shouldComponentUpdateReturn) {
+      } else if (!shouldComponentUpdateReturn) {
         child = fiber.alternate.currentChildVNode;
         fiber.SCU = false;
       }
@@ -467,7 +467,7 @@ function updateClassComponent(fiber) {
       //这种情况就复杂一点，因为可能自身无变化但是父组件render了
       //这样的情况子组件也要render
       //同样的，getDerivedStateFromProps和shouldComponentUpdate也要酌情考虑是否要运行
-      if(shouldRender) {
+      if (shouldRender) {
         child = fiber.state.render();
       } else {
         child = fiber.alternate.currentChildVNode;
@@ -479,28 +479,52 @@ function updateClassComponent(fiber) {
     //第一次渲染
     //初次渲染也是要执行getDeFromProps的
     runGetDerivedStateFromProps();
-    try{
+    updateStateAndProps();
+    try {
       child = fiber.stateNode.render();
-    }catch(e){
-      console.log(e);
-      getComponentStack(fiber);
+    } catch (e) {
+      if (fiber.stateNode && fiber.stateNode.constructor.getDerivedStateFromError) {
+        const derivedState = fiber.stateNode.constructor.getDerivedStateFromError(e);
+        if (derivedState) {
+          if (typeof derivedState !== "object") {
+            console.error("derivedState must be an object");
+            return;
+          }
+          fiber.stateNode.state = {
+            ...fiber.stateNode.state,
+            ...derivedState
+          };
+        }
+      }
+      child = fiber.stateNode.render();
+      const componentStackObj = {
+        componentStack: getComponentStack(fiber)
+      };
+      fiber.renderError = e;
+      fiber.componentStackObj = componentStackObj;
     }
-    
+
   }
 
   function getComponentStack(fiber) {
-    let stack = "";
-    while(fiber) {
+    let stack = [];
+    while (fiber) {
       const isFunctionType = typeof fiber.type === "function";
       const componentName = isFunctionType ? fiber.type.name : fiber.type;
-      componentName && (stack += ("\n" + "in " + componentName));
+      componentName && (stack.push(componentName));
       fiber = fiber.parentFiber;
     }
-    console.log(stack);
+
+    let stackStr = "";
+    while (stack.length > 1) {
+      stackStr += ("in " + stack.shift() + "(created by " + stack[stack.length - 1] + ")" + "\n");
+    }
+    stackStr += ("in " + stack.shift());
+    return stackStr;
   }
 
   fiber.currentChildVNode = child;
-  
+
   //组件只有一个最外层元素，顶层必须用一个标签包裹，
   //所以只有一个子节点
   //我们给这个子节点包装成数组
@@ -627,6 +651,10 @@ function commit(workEffect) {
       workEffect.stateNode.componentDidUpdate(workEffect.stateNode.oldProps, workEffect.stateNode.oldState, workEffect.stateNode.snapshot);
     }
 
+    if(workEffect.stateNode && workEffect.stateNode.componentDidCatch && workEffect.renderError) {
+      workEffect.stateNode.componentDidCatch(workEffect.renderError, workEffect.componentStackObj);
+    }
+
   } else if (effectTag === "UPDATE") {
     if (workEffect.type === "TEXT_ELEMENT") {
       if (workEffect.alternate.props.value !== workEffect.props.value) {
@@ -688,7 +716,7 @@ function commitRoot() {
 }
 
 function runGetSnapshotBeforeUpdate(fiber) {
-  if((typeof fiber.type === "function") && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
+  if ((typeof fiber.type === "function") && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
     const snapshot = fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
     fiber.stateNode.snapshot = snapshot;
   }
@@ -697,7 +725,7 @@ function runGetSnapshotBeforeUpdate(fiber) {
 
 function getSnapshotBeforeCommit() {
   let workEffect = workInProgressRoot && workInProgressRoot.firstEffect;
-  while(workEffect) {
+  while (workEffect) {
     workEffect = runGetSnapshotBeforeUpdate(workEffect);
   }
 }
