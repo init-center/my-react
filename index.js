@@ -8,7 +8,11 @@ import {
   useCallback,
   useContext, 
   useRef } from "./src/hooks";
+import { lazy } from "./src/lazy";
 import ReactDOM from "./src/react-dom";
+import Suspense from "./src/suspense";
+
+const LazyComp = lazy(() => import("./lazy-comp"));
 
 class Element extends React.Component {
   constructor(props) {
@@ -55,7 +59,6 @@ class Element extends React.Component {
     if(this.state.hasError) {
       return <div>出现了一些错误</div>
     } else {
-      throw new Error("a error")
       return (
       <div onClick={() => {this.setState({
         a: this.state.a + 1,
@@ -99,22 +102,17 @@ class Element2 extends React.Component {
 
   componentDidUpdate(prevProps, prevState, snapshot) {
     console.log("componentDidUpdate Element2")
-    console.log(prevProps, prevState, snapshot)
   }
 
   render() {
-    console.log("render Element2")
+    console.log("render Element2");
     return (
-      <div /*onClick = {
-        () => {
-          this.setState({
-            a: this.state.a + 1,
-            b: this.state.b + 1
-          })
-        }
-      }*/ >
+      <div>
         <div>{this.props.a}</div>
         <div>{this.props.b}</div>
+        <Suspense fallback={<div>this is a fallback</div>}>
+          <LazyComp></LazyComp>
+        </Suspense>
       </div>
       );
   }

@@ -11,10 +11,6 @@ export class UpdateQueue {
   firstUpdate = null;
   lastUpdate = null;
 
-  constructor() {
-
-  }
-
   enqueue(update) {
     if (!this.lastUpdate) {
       //如果没有lastUpdate说明还没有任何update
@@ -32,7 +28,7 @@ export class UpdateQueue {
     while (currentUpdate) {
       const nextState = typeof currentUpdate.payload === "function" ? currentUpdate.payload(state) : currentUpdate.payload;
       //合并老state和新state
-      if(typeof state === "object") {
+      if(typeof state === "object" && nextState) {
         state = {...state, ...nextState};
       } else {
         state = nextState;

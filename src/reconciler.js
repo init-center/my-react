@@ -7,8 +7,7 @@ import {
   getNearestChildDOMFiber
 } from "./utils";
 import {
-  UpdateQueue,
-  Update
+  UpdateQueue
 } from "./updateQueue";
 import {
   resetCursor
@@ -16,6 +15,8 @@ import {
 import {
   createTextElement
 } from "./createElement";
+
+import React from "./index";
 
 import shallowEqual from "./shallowEqual";
 
@@ -246,7 +247,7 @@ function reconcileChildren(fiber, children) {
         if (oldFiber) {
           oldFiber = oldFiber.siblingFiber;
         }
-
+        
         if (index === 0) {
           fiber.childFiber = newFiber;
         } else {
@@ -266,7 +267,7 @@ function reconcileChildren(fiber, children) {
       if (newChild) {
         newFiber = createFiber(fiber, null, newChild, index, false, "PLACEMENT");
       }
-
+      
       if (index === 0) {
         fiber.childFiber = newFiber;
       } else {
@@ -392,7 +393,6 @@ function updateClassComponent(fiber) {
   //新的state = 调用更新队列更新，将老的state传进去
   //会在更新队列都更新合并后返回新的state
   let newState = fiber.updateQueue.forceUpdate(oldState);
-
   //简单比较state和props是否有改变
   const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
 
@@ -480,47 +480,7 @@ function updateClassComponent(fiber) {
     //初次渲染也是要执行getDeFromProps的
     runGetDerivedStateFromProps();
     updateStateAndProps();
-    try {
-      child = fiber.stateNode.render();
-    } catch (e) {
-      if (fiber.stateNode && fiber.stateNode.constructor.getDerivedStateFromError) {
-        const derivedState = fiber.stateNode.constructor.getDerivedStateFromError(e);
-        if (derivedState) {
-          if (typeof derivedState !== "object") {
-            console.error("derivedState must be an object");
-            return;
-          }
-          fiber.stateNode.state = {
-            ...fiber.stateNode.state,
-            ...derivedState
-          };
-        }
-      }
-      child = fiber.stateNode.render();
-      const componentStackObj = {
-        componentStack: getComponentStack(fiber)
-      };
-      fiber.renderError = e;
-      fiber.componentStackObj = componentStackObj;
-    }
-
-  }
-
-  function getComponentStack(fiber) {
-    let stack = [];
-    while (fiber) {
-      const isFunctionType = typeof fiber.type === "function";
-      const componentName = isFunctionType ? fiber.type.name : fiber.type;
-      componentName && (stack.push(componentName));
-      fiber = fiber.parentFiber;
-    }
-
-    let stackStr = "";
-    while (stack.length > 1) {
-      stackStr += ("in " + stack.shift() + "(created by " + stack[stack.length - 1] + ")" + "\n");
-    }
-    stackStr += ("in " + stack.shift());
-    return stackStr;
+    child = fiber.stateNode.render();
   }
 
   fiber.currentChildVNode = child;
@@ -575,10 +535,20 @@ function performUnitOfWork(fiber) {
   } else if (type instanceof Function) {
     //是函数组件
     updateFunctionComponent(fiber);
+  } else if (typeof type === "object" && type.isLazyComp) {
+    const child = updateLazyComponent(fiber);
+    if(child) {
+      reconcileChildren(fiber, [child]);
+    }
   } else {
     updateHostComponent(fiber);
   }
 
+  return findNextUnitOfWork(fiber);  
+
+}
+
+function findNextUnitOfWork(fiber) {
   //当上面执行完成后
   //即使是rootFiber也会挂载上child
   //这时需要返回下一个工作单元
@@ -603,7 +573,47 @@ function performUnitOfWork(fiber) {
     //也就是子fiber的叔叔节点
     nextFiber = nextFiber.parentFiber;
   }
+}
 
+
+
+function updateLazyComponent(fiber) {
+  const {
+    status,
+    result,
+    ctor
+  } = fiber.type;
+  switch (status) {
+    case 0: {
+      const thenable = result;
+      return thenable;
+    }
+    case 1: {
+      const Component = result;
+      return <Component></Component>;
+    }
+    case 2: {
+      const error = result;
+      throw error;
+    }
+    default: {
+      fiber.type.status = 0;
+      const thenable = ctor();
+      thenable.then(lazyComp => {
+        if (fiber.type.status === 0) {
+          fiber.type.status = 1;
+          fiber.type.result = lazyComp.default;
+        }
+      }, error => {
+        if (fiber.type.status === 0) {
+          fiber.type.status = 2;
+          fiber.type.result = error;
+        }
+
+      });
+      throw thenable;
+    }
+  }
 }
 
 //commit有两个任务
@@ -615,7 +625,6 @@ function commit(workEffect) {
   const nearestParentDOM = nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
   const nearestChildDOMFiber = getNearestChildDOMFiber(workEffect);
   const nearestChildDOM = nearestChildDOMFiber && nearestChildDOMFiber.stateNode;
-
   const effectTag = workEffect.effectTag;
   const type = typeof workEffect.type;
 
@@ -626,8 +635,9 @@ function commit(workEffect) {
     if (workEffect.stateNode && workEffect.stateNode.componentWillUnmount) {
       workEffect.stateNode.componentWillUnmount();
     }
-
-    nearestParentDOM && nearestParentDOM.removeChild(nearestChildDOM);
+    if(nearestChildDOM && nearestParentDOM && nearestParentDOM.contains(nearestChildDOM)) {
+      nearestParentDOM.removeChild(nearestChildDOM);
+    }
   } else if (type === "function") {
     //如果是函数组件或者类组件
     //没有DOM 它们只需要调用副作用即可
@@ -647,12 +657,20 @@ function commit(workEffect) {
       workEffect.stateNode.componentDidMount();
     }
 
+    if (workEffect.stateNode && workEffect.stateNode.componentDidCatch && workEffect.stateNode.hasRenderError) {
+      workEffect.stateNode.componentDidCatch();
+      workEffect.stateNode.hasRenderError = false;
+    }
+
     if (workEffect.stateNode && workEffect.stateNode.componentDidUpdate && workEffect.effectTag === "UPDATE" && workEffect.alternate) {
       workEffect.stateNode.componentDidUpdate(workEffect.stateNode.oldProps, workEffect.stateNode.oldState, workEffect.stateNode.snapshot);
     }
 
-    if(workEffect.stateNode && workEffect.stateNode.componentDidCatch && workEffect.renderError) {
-      workEffect.stateNode.componentDidCatch(workEffect.renderError, workEffect.componentStackObj);
+    if(workEffect.stateNode && workEffect.stateNode.callbacks && workEffect.stateNode.callbacks.length > 0) {
+      while(workEffect.stateNode.callbacks.length > 0) {
+        const callback = workEffect.stateNode.callbacks.shift();
+        callback && callback();
+      }
     }
 
   } else if (effectTag === "UPDATE") {
@@ -664,7 +682,9 @@ function commit(workEffect) {
       updateDOM(workEffect.stateNode, workEffect.alternate.props, workEffect.props);
     }
   } else {
-    nearestParentDOM && nearestParentDOM.appendChild(nearestChildDOM);
+    if(nearestParentDOM && nearestChildDOM) {
+      nearestParentDOM.appendChild(nearestChildDOM);
+    }
   }
 
   //最后还要将当前fiber的effectTag清空
@@ -692,6 +712,16 @@ function runSideEffect(effects) {
 
 
 function commitRoot() {
+  //首先拿到第一个Effect，也就是根Fiber的firstEffect
+  //根Fiber也就是执行中的Fiber，即workInProgressRoot
+  let workEffect = workInProgressRoot && workInProgressRoot.firstEffect;
+  //将currentRoot设置为workInProgressRoot
+  if (workInProgressRoot) {
+    currentRoot = workInProgressRoot;
+  }
+  if (currentRoot) {
+    workInProgressRoot = null;
+  }
   //提交阶段
 
   //先提交所有的要删除的节点
@@ -699,24 +729,18 @@ function commitRoot() {
     commit(deletion);
   });
 
-  deletions.length = 0;
 
-  //首先拿到第一个Effect，也就是根Fiber的firstEffect
-  //根Fiber也就是执行中的Fiber，即workInProgressRoot
-  let workEffect = workInProgressRoot && workInProgressRoot.firstEffect;
+  deletions.length = 0;
+  
   //循环commit每一个Effect
   while (workEffect) {
     workEffect = commit(workEffect);
   }
 
-  //commit结束，将currentRoot设置为workInProgressRoot
-  currentRoot = workInProgressRoot;
-  workInProgressRoot = null;
-
 }
 
 function runGetSnapshotBeforeUpdate(fiber) {
-  if ((typeof fiber.type === "function") && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
+  if ((typeof fiber.type === "function") && fiber.stateNode && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
     const snapshot = fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
     fiber.stateNode.snapshot = snapshot;
   }
@@ -732,7 +756,7 @@ function getSnapshotBeforeCommit() {
 
 // 调度函数
 // requestIdleCallback会传递deadline进来
-function workLoop(deadline) {
+function doWorkLoop(deadline) {
   // 如果有空闲时间并且有未调度完成的工作单元就一直执行
   while (deadline.timeRemaining() > 1 && nextUnitOfWork) {
     //下一个工作单元为performUnitOfWork的返回值
@@ -753,27 +777,96 @@ function workLoop(deadline) {
 
 }
 
+function workLoop(deadline) {
+  try {
+    doWorkLoop(deadline);
+  } catch (error) {
+    const errorFiber = nextUnitOfWork;
+    const errorBoundaryParent = findErrorBoundaryParent(errorFiber && errorFiber.parentFiber);
+    if(errorBoundaryParent) {
+      if (errorBoundaryParent.stateNode && errorBoundaryParent.stateNode.constructor.getDerivedStateFromError) {
+        const derivedState = errorBoundaryParent.stateNode.constructor.getDerivedStateFromError(error);
+        if (derivedState) {
+          if (typeof derivedState !== "object") {
+            console.error("derivedState must be an object");
+            return;
+          }
+          errorBoundaryParent.stateNode.state = {
+            ...errorBoundaryParent.stateNode.state,
+            ...derivedState
+          };
+        }
+      }
+
+      if(errorBoundaryParent.stateNode && errorBoundaryParent.stateNode.componentDidCatch) {
+        const componentStackObj = {
+          componentStack: getComponentStack(errorFiber)
+        };
+
+        errorBoundaryParent.stateNode.hasRenderError = true;
+        errorBoundaryParent.stateNode.componentDidCatch = errorBoundaryParent.stateNode.componentDidCatch.bind(errorBoundaryParent.stateNode, error, componentStackObj);
+      }
+      requestIdleCallback(workLoop, {timeout:500});
+    } else {
+      throw new Error(error);
+    }
+  }
+}
+
+function getComponentStack(fiber) {
+  let stack = [];
+  while (fiber) {
+    const isFunctionType = typeof fiber.type === "function";
+    const componentName = isFunctionType ? fiber.type.name : fiber.type;
+    componentName && (stack.push(componentName));
+    fiber = fiber.parentFiber;
+  }
+
+  let stackStr = "";
+  while (stack.length > 1) {
+    stackStr += ("in " + stack.shift() + "(created by " + stack[stack.length - 1] + ")" + "\n");
+  }
+  stackStr += ("in " + stack.shift());
+  return stackStr;
+}
+
+function findErrorBoundaryParent(parentFiber) {
+  while(parentFiber) {
+    if(parentFiber.stateNode.constructor.getDerivedStateFromError || parentFiber.stateNode.componentDidCatch) {
+      return parentFiber;
+    }
+    parentFiber = parentFiber.parentFiber;
+  }
+  return null;
+}
+
 export function reconcileRoot(rootFiber) {
   //如果有currentRoot，说明不是第一次渲染
   //那么就给rootFiber的alternate赋值为老的rootFiber
   //alternate可以理解为代替者，也就是新的RootFiber替换旧的RootFiber
-  if (currentRoot) {
-    //如果没有传rootFiber
-    //则复用正在运行的rootFiber的所有属性
-    if (!rootFiber) {
+  if(!rootFiber) {
+    if(currentRoot) {
       rootFiber = {
-        ...currentRoot
-      };
+        ...currentRoot,
+        alternate: currentRoot
+      }
+    } else if(workInProgressRoot) {
+      rootFiber = {
+        ...workInProgressRoot,
+        alternate: workInProgressRoot
+      }
     }
-    rootFiber.alternate = currentRoot;
   }
-  workInProgressRoot = rootFiber;
-  nextUnitOfWork = workInProgressRoot;
 
+  workInProgressRoot = rootFiber;
+
+  nextUnitOfWork = workInProgressRoot;
   //每次重渲染都将根节点上挂载的effect清除
   //因为如果不传rootFiber进来，那么workInProgress就会复用上次的根Fiber
   //如果上面的effect不清除掉可能会有问题
-  workInProgressRoot.firstEffect = workInProgressRoot.lastEffect = workInProgressRoot.nextEffect = null;
+  if(currentRoot) {
+    workInProgressRoot.firstEffect = workInProgressRoot.lastEffect = workInProgressRoot.nextEffect = null;
+  }
 
   // 开始调度
   requestIdleCallback(workLoop, {

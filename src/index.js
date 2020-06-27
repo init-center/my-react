@@ -9,6 +9,7 @@ class Component {
   props = {};
   state = {};
   context = null;
+  callbacks = [];
   constructor(props) {
     this.props = props;
   }
@@ -46,11 +47,12 @@ class Component {
   componentWillUnmount() {
   }
 
-  setState(payload) {
+  setState(payload, callback) {
     const update = new Update(payload);
     //实例上会挂载internalFiber属性，这个属性是这个实例对应的fiber
     //fiber上会挂载一个updateQueue实例
     this.internalFiber.updateQueue.enqueue(update);
+    this.callbacks.push(callback);
     reconcileRoot();
   }
 }
