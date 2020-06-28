@@ -4,8 +4,9 @@ import {
 import {
   createTextElement
 } from "./createElement";
+import createPortal from "./createPortal";
 
-function render(element, container) {
+export function render(element, container) {
   if(typeof element === "function") {
     console.error(`Warning: Functions are not valid as a React child. 
     This may happen if you return a Component instead of <Component /> from render. 
@@ -28,7 +29,8 @@ function render(element, container) {
 }
 
 const ReactDOM = {
-  render
+  render,
+  createPortal
 }
 
 export default ReactDOM;

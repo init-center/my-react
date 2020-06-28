@@ -1,9 +1,10 @@
 import { createElement } from "./createElement";
 import { Update } from "./updateQueue";
 import { reconcileRoot } from "./reconciler";
+import shallowEqual from "./shallowEqual";
 
 //实现类组件
-class Component {
+export class Component {
   //这个静态属性用来标志这是个类组件
   static _isClassComponent = true;
   props = {};
@@ -58,6 +59,27 @@ class Component {
 }
 
 
+export class PureComponent extends Component {
+  static _isPureClassComponent = true;
+  shouldComponentUpdate(nextProps, nextState) {
+    //因为children都是数组，所以可能会一直是false
+    //需要特殊处理一下
+    const oldProps = {...this.props, children: null};
+    const newProps = {...nextProps, children: null};
+    const oldChildren = this.props.children;
+    const newChildren = nextProps.children;
+    if(shallowEqual(oldProps, newProps) && shallowEqual(oldChildren, newChildren) && shallowEqual(this.state, nextState)) {
+      return false;
+    }
+    return true;
+  }
+}
+
+export function memo(component) {
+  
+}
+
+
 export function createRef() {
   const refObject = {
     current: null
@@ -102,6 +124,7 @@ export function createContext(defaultValue) {
 const React = {
   createElement,
   Component,
+  PureComponent,
   createRef,
   createContext
 };

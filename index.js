@@ -1,4 +1,4 @@
-import React, { createContext, createRef, Fragment } from "./src/index";
+import React, { createContext, createRef, Fragment, PureComponent } from "./src/index";
 import { 
   useReducer, 
   useState, 
@@ -20,6 +20,7 @@ class Element extends React.Component {
     this.state = {
       a: 100,
       b: 200,
+      c: 300,
       hasError: false
     };
   }
@@ -65,6 +66,7 @@ class Element extends React.Component {
         b: this.state.b + 1
       })}}>
         <Element2 a={a} b={b}/>
+        <Element3 number={this.state.c}></Element3>
       </div>
     );
     }
@@ -113,8 +115,18 @@ class Element2 extends React.Component {
         <Suspense fallback={<div>this is a fallback</div>}>
           <LazyComp></LazyComp>
         </Suspense>
+        {
+          ReactDOM.createPortal(<div>this is a createPortal</div>, document.getElementById("portal-container"))
+        }
       </div>
       );
+  }
+}
+
+class Element3 extends PureComponent {
+  render() {
+    console.log("render Element3")
+    return <p>{this.props.number}</p>
   }
 }
 

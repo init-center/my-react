@@ -128,7 +128,9 @@ function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag
     updateQueue: reusable && oldFiber.updateQueue ? oldFiber.updateQueue : typeof newChild.type === "function" ? new UpdateQueue() : null,
     index: index,
     nextEffect: null,
-    SCU: true
+    SCU: true,
+    isPortalComponent: newChild.isPortalComponent,
+    portalContainer: newChild.portalContainer
   };
 
   return newFiber;
@@ -461,14 +463,23 @@ function updateClassComponent(fiber) {
         fiber.SCU = false;
       }
     } else {
-      //不管怎样都要更新state和props，因为SCU返回false只是不渲染，但是state和props还是要更新的
-      updateStateAndProps();
       //state或props无变化的情况
       //这种情况就复杂一点，因为可能自身无变化但是父组件render了
       //这样的情况子组件也要render
       //同样的，getDerivedStateFromProps和shouldComponentUpdate也要酌情考虑是否要运行
       if (shouldRender) {
-        child = fiber.state.render();
+        //父组件更新了，但是子组件的props和state没有变化
+        //这时也不应该直接重渲染子组件，而是先看看SCU的返回
+        runGetDerivedStateFromProps();
+        const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
+        const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
+        if(shouldComponentUpdateReturn) {
+          child = fiber.state.render();
+        } else {
+          child = fiber.alternate.currentChildVNode;
+          fiber.SCU = false;
+        }
+        
       } else {
         child = fiber.alternate.currentChildVNode;
         fiber.SCU = false;
@@ -622,11 +633,16 @@ function updateLazyComponent(fiber) {
 function commit(workEffect) {
   //首先拿到父Fiber对应的DOM
   const nearestParentDOMFiber = getNearestParentDOMFiber(workEffect.parentFiber);
-  const nearestParentDOM = nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
+  let nearestParentDOM = nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
   const nearestChildDOMFiber = getNearestChildDOMFiber(workEffect);
   const nearestChildDOM = nearestChildDOMFiber && nearestChildDOMFiber.stateNode;
   const effectTag = workEffect.effectTag;
   const type = typeof workEffect.type;
+
+  //处理portal
+  if(workEffect.isPortalComponent) {
+    nearestParentDOM = workEffect.portalContainer;
+  }
 
   if (effectTag === "DELETION") {
     if (workEffect.hooks) {
@@ -715,6 +731,10 @@ function commitRoot() {
   //首先拿到第一个Effect，也就是根Fiber的firstEffect
   //根Fiber也就是执行中的Fiber，即workInProgressRoot
   let workEffect = workInProgressRoot && workInProgressRoot.firstEffect;
+  //在commit之前就将currentRoot赋值
+  //这时候表名已经diff并reconcile完成
+  //如果在commit中途改变状态，打断当前的commit
+  //也不至于currentRoot为空，错误地认为是第一次渲染
   //将currentRoot设置为workInProgressRoot
   if (workInProgressRoot) {
     currentRoot = workInProgressRoot;
