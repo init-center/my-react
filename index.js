@@ -1,4 +1,4 @@
-import React, { createContext, createRef, Fragment, PureComponent } from "./src/index";
+import React, { createContext, createRef, Fragment, PureComponent, memo } from "./src/index";
 import { 
   useReducer, 
   useState, 
@@ -13,6 +13,11 @@ import ReactDOM from "./src/react-dom";
 import Suspense from "./src/suspense";
 
 const LazyComp = lazy(() => import("./lazy-comp"));
+
+const Element4 = memo((props) => {
+  console.log("element4 reRender")
+  return <div>element4</div>
+})
 
 class Element extends React.Component {
   constructor(props) {
@@ -118,6 +123,7 @@ class Element2 extends React.Component {
         {
           ReactDOM.createPortal(<div>this is a createPortal</div>, document.getElementById("portal-container"))
         }
+        <Element4></Element4>
       </div>
       );
   }

@@ -396,6 +396,7 @@ function updateClassComponent(fiber) {
   //会在更新队列都更新合并后返回新的state
   let newState = fiber.updateQueue.forceUpdate(oldState);
   //简单比较state和props是否有改变
+  //todo props的children每次都不相同，这里应该处理一下
   const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
 
   function runGetDerivedStateFromProps() {
@@ -546,11 +547,13 @@ function performUnitOfWork(fiber) {
   } else if (type instanceof Function) {
     //是函数组件
     updateFunctionComponent(fiber);
-  } else if (typeof type === "object" && type.isLazyComp) {
+  } else if (typeof type === "object" && type.isLazyComponent) {
     const child = updateLazyComponent(fiber);
     if(child) {
       reconcileChildren(fiber, [child]);
     }
+  } else if(typeof type === "object" && type.isMemoComponent) {
+    updateMemoComponent(fiber);
   } else {
     updateHostComponent(fiber);
   }
@@ -584,6 +587,43 @@ function findNextUnitOfWork(fiber) {
     //也就是子fiber的叔叔节点
     nextFiber = nextFiber.parentFiber;
   }
+}
+
+
+function updateMemoComponent(fiber) {
+  let child = null;
+  if(fiber.alternate) {
+    const compare = fiber.type.compare;
+    const oldProps = { ...fiber.alternate.props, children: null };
+    const newProps = { ...fiber.props, children: null };
+    const oldChildren = fiber.alternate.props.children;
+    const newChildren = fiber.props.children;
+    //todo 实际上还是与react不一致，主要还是在于children每一个元素的对比
+    //todo 在react中也是memo组件或者pureComponent中嵌套了标签那么也会重渲染
+    //todo 因为每次创建的虚拟DOM是对象，不可能相同，多个标签时是数组，也不可能相同
+    //todo  我这里把children全包装成了数组，所以要单独比对
+    //todo 但是问题在于react官方不会包装string或者number为对象，当memo里嵌套的是字符串或者数字时，字符串是可以比对的，所以只要props没变化是不会重渲染的
+    //todo 我将string和number包装成了对象，所以不好比对，这就导致了只要嵌套了东西，那么不管怎样都会重渲染
+    if(compare) {
+      //compare与shouldComponentUpdate是相反的，返回true不更新，否则更新
+      if(compare(fiber.alternate.props, fiber.props)) {
+        child = fiber.alternate.currentChildVNode;
+      } else {
+        child = fiber.type.component();
+      }
+    } else {
+      if (shallowEqual(oldProps, newProps) && shallowEqual(oldChildren, newChildren)) {
+        child = fiber.alternate.currentChildVNode;
+      } else {
+        child = fiber.type.component();
+      }
+    }
+    
+  } else {
+    child = fiber.type.component();
+  }
+  fiber.currentChildVNode = child;
+  reconcileChildren(fiber, [child]);
 }
 
 

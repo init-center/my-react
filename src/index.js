@@ -75,8 +75,12 @@ export class PureComponent extends Component {
   }
 }
 
-export function memo(component) {
-  
+export function memo(component, compare) {
+  return {
+    isMemoComponent: true,
+    component: component,
+    compare: compare
+  }
 }
 
 
