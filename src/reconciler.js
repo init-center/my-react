@@ -19,6 +19,7 @@ import {
 import React from "./index";
 
 import shallowEqual from "./shallowEqual";
+import compareChildren from "./compareChildren";
 
 // 正在调度的工作Root
 let workInProgressRoot = null;
@@ -396,8 +397,9 @@ function updateClassComponent(fiber) {
   //会在更新队列都更新合并后返回新的state
   let newState = fiber.updateQueue.forceUpdate(oldState);
   //简单比较state和props是否有改变
-  //todo props的children每次都不相同，这里应该处理一下
-  const shouldUpdate = !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState);
+  // 因为我将所有的children都包装成了数组,数组每次都是不相同的，所以需要单独处理
+  //shallowEqual不包括children,children单独进行比对
+  const shouldUpdate = !shallowEqual({...oldProps, children: null }, {...newProps, children: null }) || !compareChildren(oldProps.children, newProps.children) || !shallowEqual(oldState, newState);
 
   function runGetDerivedStateFromProps() {
     //getDerivedState运行在SCU和render之前
@@ -531,7 +533,9 @@ function updateHostComponent(fiber) {
 
   const children = fiber && fiber.props && fiber.props.children;
   // 调度子节点
-  reconcileChildren(fiber, children);
+  if(children) {
+    reconcileChildren(fiber, children);
+  }
 }
 
 
@@ -598,29 +602,28 @@ function updateMemoComponent(fiber) {
     const newProps = { ...fiber.props, children: null };
     const oldChildren = fiber.alternate.props.children;
     const newChildren = fiber.props.children;
-    //todo 实际上还是与react不一致，主要还是在于children每一个元素的对比
-    //todo 在react中也是memo组件或者pureComponent中嵌套了标签那么也会重渲染
-    //todo 因为每次创建的虚拟DOM是对象，不可能相同，多个标签时是数组，也不可能相同
-    //todo  我这里把children全包装成了数组，所以要单独比对
-    //todo 但是问题在于react官方不会包装string或者number为对象，当memo里嵌套的是字符串或者数字时，字符串是可以比对的，所以只要props没变化是不会重渲染的
-    //todo 我将string和number包装成了对象，所以不好比对，这就导致了只要嵌套了东西，那么不管怎样都会重渲染
+    // 在react中memo组件或者pureComponent中嵌套了标签那么也会重渲染
+    // 因为每次创建的虚拟DOM是对象，不可能相同，多个标签时是数组，也不可能相同
+    //  我把children全包装成了数组，所以要单独比对
+    // 但是问题在于react官方不会包装string或者number为对象，当memo里嵌套的是字符串或者数字时，字符串是可以比对的，所以只要props没变化是不会重渲染的
+    //所以我这里要单独比对children，处理文本节点的问题
     if(compare) {
       //compare与shouldComponentUpdate是相反的，返回true不更新，否则更新
       if(compare(fiber.alternate.props, fiber.props)) {
         child = fiber.alternate.currentChildVNode;
       } else {
-        child = fiber.type.component();
+        child = fiber.type.component(fiber.props);
       }
     } else {
-      if (shallowEqual(oldProps, newProps) && shallowEqual(oldChildren, newChildren)) {
+      if (shallowEqual(oldProps, newProps) && compareChildren(oldChildren, newChildren)) {
         child = fiber.alternate.currentChildVNode;
       } else {
-        child = fiber.type.component();
+        child = fiber.type.component(fiber.props);
       }
     }
     
   } else {
-    child = fiber.type.component();
+    child = fiber.type.component(fiber.props);
   }
   fiber.currentChildVNode = child;
   reconcileChildren(fiber, [child]);
@@ -694,7 +697,7 @@ function commit(workEffect) {
     if(nearestChildDOM && nearestParentDOM && nearestParentDOM.contains(nearestChildDOM)) {
       nearestParentDOM.removeChild(nearestChildDOM);
     }
-  } else if (type === "function") {
+  } else if (type === "function" || type === "object") {
     //如果是函数组件或者类组件
     //没有DOM 它们只需要调用副作用即可
     if (workEffect.hooks && workEffect.hooks.layouts) {

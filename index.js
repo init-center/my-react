@@ -15,8 +15,7 @@ import Suspense from "./src/suspense";
 const LazyComp = lazy(() => import("./lazy-comp"));
 
 const Element4 = memo((props) => {
-  console.log("element4 reRender")
-  return <div>element4</div>
+  return props.children;
 })
 
 class Element extends React.Component {
@@ -123,7 +122,12 @@ class Element2 extends React.Component {
         {
           ReactDOM.createPortal(<div>this is a createPortal</div>, document.getElementById("portal-container"))
         }
-        <Element4></Element4>
+        <Element4>
+          <div id="123">123</div>
+          <div id="456">456</div>
+          <div id="789">789</div>
+          <div id="101112">101112</div>
+        </Element4>
       </div>
       );
   }

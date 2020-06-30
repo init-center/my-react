@@ -26,7 +26,6 @@ export default class Suspense extends React.Component {
   render() {
     const { children, fallback } = this.props;
     if(this.state.isLoading) {
-      console.log("return fallback")
       return fallback;
     } else {
       return children;

@@ -2,8 +2,7 @@ export function createTextElement(text) {
   return {
     type: "TEXT_ELEMENT",
     props: {
-      value: text,
-      children: []
+      value: text
     }
   };
 }

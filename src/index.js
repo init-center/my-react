@@ -2,6 +2,7 @@ import { createElement } from "./createElement";
 import { Update } from "./updateQueue";
 import { reconcileRoot } from "./reconciler";
 import shallowEqual from "./shallowEqual";
+import compareChildren from "./compareChildren";
 
 //实现类组件
 export class Component {
@@ -68,7 +69,7 @@ export class PureComponent extends Component {
     const newProps = {...nextProps, children: null};
     const oldChildren = this.props.children;
     const newChildren = nextProps.children;
-    if(shallowEqual(oldProps, newProps) && shallowEqual(oldChildren, newChildren) && shallowEqual(this.state, nextState)) {
+    if(shallowEqual(oldProps, newProps) && compareChildren(oldChildren, newChildren) && shallowEqual(this.state, nextState)) {
       return false;
     }
     return true;
