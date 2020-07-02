@@ -111,6 +111,7 @@ export function createContext(defaultValue) {
 
   class Consumer extends Component {
     static _isContextConsumer = true;
+    static provider = Provider;
     constructor(props) {
       super(props);
     }

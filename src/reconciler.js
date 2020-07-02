@@ -117,7 +117,7 @@ function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag
   }
 
   if (typeof newChild === "function") {
-    newChild = newChild(parentFiberIsContextConsumer ? parentFiber.stateNode.currentValue.value : undefined);
+    newChild = newChild(parentFiberIsContextConsumer ? parentFiber.type.provider.currentValue : undefined);
     newChild = (typeof newChild === "string" || typeof newChild === "number") ? createTextElement(newChild) : newChild;
   }
   let newFiber = {
@@ -142,6 +142,7 @@ function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag
 function reconcileChildren(fiber, children) {
   //在开始的开始，我们首先要将children拍平
   //为什么要拍平呢？因为当child使用map遍历返回的是一个数组
+  //或者是函数和render返回props.children的情况
   //所以child有可能是一个数组，出现children中嵌套了数组的情况
   children = children.flat();
   // 首先要为所有子节点创建fiber
@@ -511,7 +512,7 @@ function updateClassComponent(fiber) {
   //组件只有一个最外层元素，顶层必须用一个标签包裹，
   //所以只有一个子节点
   //我们给这个子节点包装成数组
-  const children = [child];
+  const children = Array.isArray(child) ? child : [child];
   //调和它的子节点
   reconcileChildren(fiber, children);
 }
@@ -530,7 +531,7 @@ function updateFunctionComponent(fiber) {
   };
   //调和子节点
   const child = fiber.type(fiber.props);
-  reconcileChildren(fiber, [child]);
+  reconcileChildren(fiber, Array.isArray(child) ? child : [child]);
 }
 
 function updateHostComponent(fiber) {
@@ -543,7 +544,7 @@ function updateHostComponent(fiber) {
   const children = fiber && fiber.props && fiber.props.children;
   // 调度子节点
   if(children) {
-    reconcileChildren(fiber, children);
+    reconcileChildren(fiber, Array.isArray(children) ? children : [children]);
   }
 }
 
@@ -635,7 +636,7 @@ function updateMemoComponent(fiber) {
     child = fiber.type.component(fiber.props);
   }
   fiber.currentChildVNode = child;
-  reconcileChildren(fiber, [child]);
+  reconcileChildren(fiber, Array.isArray(child) ? child : [child]);
 }
 
 
