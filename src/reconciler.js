@@ -4,7 +4,8 @@ import {
 
 import {
   getNearestParentDOMFiber,
-  getNearestChildDOMFiber
+  getNearestChildDOMFiber,
+  getHostSibling
 } from "./utils";
 import {
   UpdateQueue
@@ -436,6 +437,14 @@ function updateClassComponent(fiber) {
   let child = null;
   const notFirstReconcile = fiber.alternate;
 
+
+  if(fiber.stateNode && fiber.stateNode._isSuspenseComponent) {
+    const lazyChildren = fiber.props.children.filter(child => {
+      return typeof child.type === "object" && child.type.isLazyComponent && child.type.status === -1;
+    });
+    fiber.lazyChildren = lazyChildren;
+  }
+
   //非第一次渲染
   if (notFirstReconcile) {
     //只要不是第一次渲染，都给stateNode挂上旧的props和state
@@ -632,42 +641,57 @@ function updateMemoComponent(fiber) {
 
 
 function updateLazyComponent(fiber) {
+  const parentFiber = fiber.parentFiber;
+  if(!(parentFiber.stateNode && parentFiber.stateNode._isSuspenseComponent)) {
+    console.error("The parentComponent of lazyComponent must be a SuspenseComponent.");
+    return;
+  }
+
+  if(parentFiber.lazyChildren && parentFiber.lazyChildren.length > 0 && !parentFiber.thenable) {
+    const ctors = [];
+    for (let i = 0; i < parentFiber.lazyChildren.length; i++) {
+      const lazyChild = parentFiber.lazyChildren[i];
+      lazyChild.type.status = 0;
+      ctors.push(lazyChild.type.ctor());
+    }
+    const thenable = Promise.all(ctors)
+    thenable.then((modules) => {
+      for (let i = 0; i < modules.length; i++) {
+        const module = modules[i];
+        parentFiber.lazyChildren[i].type.status = 1;
+        parentFiber.lazyChildren[i].type.result = module.default;
+      }
+    });
+
+    thenable.catch((error) => {
+      for (let i = 0; i < modules.length; i++) {
+        parentFiber.lazyChildren[i].type.status = 2;
+        parentFiber.lazyChildren[i].type.result = error;
+      }
+    });
+    parentFiber.thenable = thenable;
+    throw thenable;
+  }
+
   const {
     status,
-    result,
-    ctor
+    result
   } = fiber.type;
   switch (status) {
-    case 0: {
-      const thenable = result;
-      return thenable;
-    }
     case 1: {
       const Component = result;
-      return <Component></Component>;
+      //要将props传递下去
+      return <Component {...fiber.props}></Component>;
     }
     case 2: {
       const error = result;
       throw error;
     }
     default: {
-      fiber.type.status = 0;
-      const thenable = ctor();
-      thenable.then(lazyComp => {
-        if (fiber.type.status === 0) {
-          fiber.type.status = 1;
-          fiber.type.result = lazyComp.default;
-        }
-      }, error => {
-        if (fiber.type.status === 0) {
-          fiber.type.status = 2;
-          fiber.type.result = error;
-        }
-
-      });
-      throw thenable;
+      
     }
   }
+  
 }
 
 //commit有两个任务
@@ -742,7 +766,12 @@ function commit(workEffect) {
     }
   } else {
     if(nearestParentDOM && nearestChildDOM) {
-      nearestParentDOM.appendChild(nearestChildDOM);
+      const hostSibling = getHostSibling(workEffect);
+      if(hostSibling) {
+        nearestParentDOM.insertBefore(nearestChildDOM, hostSibling);
+      } else {
+        nearestParentDOM.appendChild(nearestChildDOM);
+      }
     }
   }
 
@@ -871,7 +900,7 @@ function workLoop(deadline) {
       }
       requestIdleCallback(workLoop, {timeout:500});
     } else {
-      throw new Error(error);
+      throw error;
     }
   }
 }

@@ -2,6 +2,7 @@ import React from "./index";
 
 export default class Suspense extends React.Component {
   _isSuspenseComponent = true;
+  _status = -1;
   constructor(props) {
     super(props);
     this.state = {
@@ -11,13 +12,21 @@ export default class Suspense extends React.Component {
 
   componentDidCatch(error) {
     if (error && typeof error === "object" && typeof error.then === "function") {
+      this._status = 0;
       this.setState({
         isLoading: true
       }, () => {
         error.then(() => {
+          this._status = 1;
+          this.thenable = null;
           this.setState({
             isLoading: false
-          })
+          });
+        });
+        error.catch(() => {
+          this._status = 2;
+          this.thenable = null;
+          throw error;
         })
       })
     }

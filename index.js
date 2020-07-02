@@ -13,6 +13,7 @@ import ReactDOM from "./src/react-dom";
 import Suspense from "./src/suspense";
 
 const LazyComp = lazy(() => import("./lazy-comp"));
+const LazyComp2 = lazy(() => import("./lazy-comp2"));
 
 const Element4 = memo((props) => {
   return props.children;
@@ -25,6 +26,7 @@ class Element extends React.Component {
       a: 100,
       b: 200,
       c: 300,
+      show: false,
       hasError: false
     };
   }
@@ -67,8 +69,12 @@ class Element extends React.Component {
       return (
       <div onClick={() => {this.setState({
         a: this.state.a + 1,
-        b: this.state.b + 1
+        b: this.state.b + 1,
+        show: !this.state.show
       })}}>
+      {
+          this.state.show ? <div>abc</div> : <span>aoe</span>
+        }
         <Element2 a={a} b={b}/>
         <Element3 number={this.state.c}></Element3>
       </div>
@@ -117,7 +123,10 @@ class Element2 extends React.Component {
         <div>{this.props.a}</div>
         <div>{this.props.b}</div>
         <Suspense fallback={<div>this is a fallback</div>}>
-          <LazyComp></LazyComp>
+          <LazyComp num={10000}></LazyComp>
+          <div>这是一个普通的div标签</div>
+          <LazyComp num={11111}></LazyComp>
+          <LazyComp2 num={1010101}></LazyComp2>
         </Suspense>
         {
           ReactDOM.createPortal(<div>this is a createPortal</div>, document.getElementById("portal-container"))
