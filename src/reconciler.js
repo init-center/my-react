@@ -487,7 +487,7 @@ function updateClassComponent(fiber) {
         const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
         const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
         if(shouldComponentUpdateReturn) {
-          child = fiber.state.render();
+          child = fiber.stateNode.render();
         } else {
           child = fiber.alternate.currentChildVNode;
           fiber.SCU = false;
