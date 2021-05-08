@@ -1,6 +1,5 @@
 import React, { Component, createContext } from "../src/index";
 
-
 export const BrowserRouterContext = createContext(window.location.pathname);
 
 export default class BrowserRouter extends Component {
@@ -10,9 +9,9 @@ export default class BrowserRouter extends Component {
     this.listenHistory();
     this.state = {
       history: {
-        pathname: window.location.pathname
-      }
-    }
+        pathname: window.location.pathname,
+      },
+    };
   }
 
   listenFunction = (e) => {
@@ -21,11 +20,11 @@ export default class BrowserRouter extends Component {
       this.setState({
         ...this.state,
         history: {
-          pathname: currentPathname
-        }
+          pathname: currentPathname,
+        },
       });
     }
-  }
+  };
 
   listenHistory() {
     window.addEventListener("popstate", this.listenFunction, false);
@@ -34,14 +33,14 @@ export default class BrowserRouter extends Component {
   }
 
   runHistoryStateHook() {
-    function historyStateHook (eventType) {
+    function historyStateHook(eventType) {
       const origin = window.history[eventType];
       return function (state, title, url) {
         //需要用call，因为直接调用会失去上下文环境, 非法调用
         origin.call(this, state, title, url);
         const stateEvent = new Event(eventType);
         window.dispatchEvent(stateEvent);
-      }
+      };
     }
     window.history.pushState = historyStateHook("pushState");
     window.history.replaceState = historyStateHook("replaceState");
@@ -52,8 +51,10 @@ export default class BrowserRouter extends Component {
   }
 
   render() {
-    return (<BrowserRouterContext.Provider value={this.state.history}>
-      { this.props.children }
-    </BrowserRouterContext.Provider>);
+    return (
+      <BrowserRouterContext.Provider value={this.state.history}>
+        {this.props.children}
+      </BrowserRouterContext.Provider>
+    );
   }
 }

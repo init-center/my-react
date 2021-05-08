@@ -28,9 +28,9 @@ export function render(element, container) {
   reconcileRoot(rootFiber);
 }
 
-const ReactDOM = {
+const DOM = {
   render,
   createPortal
 }
 
-export default ReactDOM;
+export default DOM;

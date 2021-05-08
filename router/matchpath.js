@@ -5,17 +5,16 @@ function getRegexp(path, options) {
   const result = pathToRegexp(path, keys, options);
   return {
     regexp: result,
-    keys
+    keys,
   };
 }
 
-
 export function matchPath(pathname, options = {}) {
   const { path, exact = false, strict = false, sensitive = false } = options;
-  const { regexp, keys } = getRegexp(path, {end: exact, strict, sensitive});
+  const { regexp, keys } = getRegexp(path, { end: exact, strict, sensitive });
   const match = regexp.exec(pathname);
-  if(!match) return null;
-  const [url, ... values] = match;
+  if (!match) return null;
+  const [url, ...values] = match;
 
   const isExact = pathname === url;
 
@@ -28,6 +27,6 @@ export function matchPath(pathname, options = {}) {
     params: keys.reduce((acc, key, index) => {
       acc[key.name] = values[index];
       return acc;
-    }, {})
+    }, {}),
   };
 }

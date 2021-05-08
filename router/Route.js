@@ -2,7 +2,7 @@ import React, { Component } from "../src/index";
 import { BrowserRouterContext }  from "./BrowserRouter";
 import { matchPath } from "./matchpath";
 
-export class Route extends Component {
+export default class Route extends Component {
   static contextType = BrowserRouterContext;
   static isRouteComponent = true;
   constructor(props) {

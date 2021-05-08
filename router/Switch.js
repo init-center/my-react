@@ -1,19 +1,20 @@
 import React, { Component } from "../src/index";
-import { BrowserRouterContext }  from "./BrowserRouter";
+import { BrowserRouterContext } from "./BrowserRouter";
 import { matchPath } from "./matchpath";
 
-export class Switch extends Component {
+export default class Switch extends Component {
   static contextType = BrowserRouterContext;
   constructor(props) {
     super(props);
-
   }
 
   render() {
     const history = this.context;
     const pathname = history.pathname;
-    const children = this.props.children.flat().filter((child => child.type.isRouteComponent));
-    if(children.length === 0) {
+    const children = this.props.children
+      .flat()
+      .filter((child) => child.type.isRouteComponent);
+    if (children.length === 0) {
       return null;
     }
 
@@ -25,14 +26,13 @@ export class Switch extends Component {
         sensitive,
         exact,
         strict,
-        path
+        path,
       });
-      if(matchResult) {
+      if (matchResult) {
         return child;
       }
-      
     }
-    
+
     return null;
   }
 }

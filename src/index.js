@@ -3,6 +3,18 @@ import { Update } from "./updateQueue";
 import { reconcileRoot } from "./reconciler";
 import shallowEqual from "./shallowEqual";
 import compareChildren from "./compareChildren";
+import Suspense from "./suspense";
+import lazy from "./lazy";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useContext,
+  useMemo,
+  useReducer,
+  useRef,
+} from "./hooks";
 
 //实现类组件
 export class Component {
@@ -22,8 +34,7 @@ export class Component {
     //console.log("getDerivedState")
   }
 
-  componentDidMount() {
-  }
+  componentDidMount() {}
 
   shouldComponentUpdate(nextProps, nextState) {
     //console.log("shouldComponentUpdate")
@@ -36,7 +47,6 @@ export class Component {
     //这个方法的返回会传递给
     //componentDidUpdate
     //传给它作为第三个参数（info），info是可选的，有就传没有就不传
-
   }
 
   componentDidUpdate(prevProps, prevState, snapshot) {
@@ -46,8 +56,7 @@ export class Component {
     //console.log("componentDidUpdate")
   }
 
-  componentWillUnmount() {
-  }
+  componentWillUnmount() {}
 
   setState(payload, callback) {
     const update = new Update(payload);
@@ -59,17 +68,20 @@ export class Component {
   }
 }
 
-
 export class PureComponent extends Component {
   static _isPureClassComponent = true;
   shouldComponentUpdate(nextProps, nextState) {
     //因为children都是数组，所以可能会一直是false
     //需要特殊处理一下
-    const oldProps = {...this.props, children: null};
-    const newProps = {...nextProps, children: null};
+    const oldProps = { ...this.props, children: null };
+    const newProps = { ...nextProps, children: null };
     const oldChildren = this.props.children;
     const newChildren = nextProps.children;
-    if(shallowEqual(oldProps, newProps) && compareChildren(oldChildren, newChildren) && shallowEqual(this.state, nextState)) {
+    if (
+      shallowEqual(oldProps, newProps) &&
+      compareChildren(oldChildren, newChildren) &&
+      shallowEqual(this.state, nextState)
+    ) {
       return false;
     }
     return true;
@@ -80,14 +92,13 @@ export function memo(component, compare) {
   return {
     isMemoComponent: true,
     component: component,
-    compare: compare
-  }
+    compare: compare,
+  };
 }
-
 
 export function createRef() {
   const refObject = {
-    current: null
+    current: null,
   };
   return refObject;
 }
@@ -104,7 +115,8 @@ export function createContext(defaultValue) {
     }
 
     render() {
-      Provider.currentValue = (this.props && this.props.value) ? this.props.value : defaultValue;
+      Provider.currentValue =
+        this.props && this.props.value ? this.props.value : defaultValue;
       return this.props.children;
     }
   }
@@ -123,7 +135,7 @@ export function createContext(defaultValue) {
 
   return {
     Provider,
-    Consumer
+    Consumer,
   };
 }
 
@@ -132,7 +144,17 @@ const React = {
   Component,
   PureComponent,
   createRef,
-  createContext
+  createContext,
+  Suspense,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useContext,
+  useMemo,
+  useReducer,
+  useRef,
+  lazy,
 };
 
 export default React;

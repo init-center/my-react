@@ -1,21 +1,13 @@
-import {
-  reservedAttrs
-} from "./reserved_attrs";
+import { reservedAttrs } from "./reserved_attrs";
 
 import {
   getNearestParentDOMFiber,
   getNearestChildDOMFiber,
-  getHostSibling
+  getHostSibling,
 } from "./utils";
-import {
-  UpdateQueue
-} from "./updateQueue";
-import {
-  resetCursor
-} from "./hooks";
-import {
-  createTextElement
-} from "./createElement";
+import { UpdateQueue } from "./updateQueue";
+import { resetCursor } from "./hooks";
+import { createTextElement } from "./createElement";
 
 import React from "./index";
 
@@ -48,7 +40,6 @@ export function getWIPFiber() {
   return workInProgressFiber;
 }
 
-
 function completeUnitOfWork(completeFiber) {
   //自身完成的时候要将自己的type从shouldRender上面清除
   if (shouldRender === completeFiber.type) {
@@ -63,15 +54,13 @@ function completeUnitOfWork(completeFiber) {
     if (completeFiber.firstEffect || completeFiber.lastEffect) {
       //如果父fiber还没收集到任何Effect
       if (!returnFiber.firstEffect) {
-        //将自己第一个Effect交给父fiber作为第一个Effect  
+        //将自己第一个Effect交给父fiber作为第一个Effect
         returnFiber.firstEffect = completeFiber.firstEffect;
-
       } else {
         // 否则就是父fiber已经有Effect了，自己不是第一个
         //这种情况就将自己的firstEffect连接到父fiber的lastEffect后面
         //也就是父fiber的lastEffect的nextEffect指向自己的firstEffect
         returnFiber.lastEffect.nextEffect = completeFiber.firstEffect;
-
       }
       //执行完上面的操作后，自己的firstEffect都已经接到父fiber后面了
       //还要将自己的lastEffect交给父Fiber作为最后一个Effect
@@ -107,18 +96,35 @@ function completeUnitOfWork(completeFiber) {
   }
 }
 
-function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag) {
-  const parentFiberIsContextConsumer = parentFiber.type && parentFiber.type._isContextConsumer;
+function createFiber(
+  parentFiber,
+  oldFiber,
+  newChild,
+  index,
+  reusable,
+  effectTag
+) {
+  const parentFiberIsContextConsumer =
+    parentFiber.type && parentFiber.type._isContextConsumer;
   if (parentFiberIsContextConsumer) {
     if (typeof newChild !== "function") {
-      console.error("The child node of the Consumer component must be a function!");
+      console.error(
+        "The child node of the Consumer component must be a function!"
+      );
       return;
     }
   }
 
   if (typeof newChild === "function") {
-    newChild = newChild(parentFiberIsContextConsumer ? parentFiber.type.provider.currentValue : undefined);
-    newChild = (typeof newChild === "string" || typeof newChild === "number") ? createTextElement(newChild) : newChild;
+    newChild = newChild(
+      parentFiberIsContextConsumer
+        ? parentFiber.type.provider.currentValue
+        : undefined
+    );
+    newChild =
+      typeof newChild === "string" || typeof newChild === "number"
+        ? createTextElement(newChild)
+        : newChild;
   }
   let newFiber = {
     type: newChild.type,
@@ -127,16 +133,20 @@ function createFiber(parentFiber, oldFiber, newChild, index, reusable, effectTag
     parentFiber: parentFiber,
     alternate: reusable ? oldFiber : null,
     effectTag: effectTag,
-    updateQueue: reusable && oldFiber.updateQueue ? oldFiber.updateQueue : typeof newChild.type === "function" ? new UpdateQueue() : null,
+    updateQueue:
+      reusable && oldFiber.updateQueue
+        ? oldFiber.updateQueue
+        : typeof newChild.type === "function"
+        ? new UpdateQueue()
+        : null,
     index: index,
     nextEffect: null,
     SCU: true,
     isPortalComponent: newChild.isPortalComponent,
-    portalContainer: newChild.portalContainer
+    portalContainer: newChild.portalContainer,
   };
 
   return newFiber;
-
 }
 
 function reconcileChildren(fiber, children) {
@@ -157,7 +167,10 @@ function reconcileChildren(fiber, children) {
     const firstOldFiber = oldFiber;
     //判断第一个子节点有没有key，如果有则默认所有子节点含有key
     //否则默认所有的都没有key
-    const hasKey = (children && children[0] && children[0].props && children[0].props.key) ? true : false;
+    const hasKey =
+      children && children[0] && children[0].props && children[0].props.key
+        ? true
+        : false;
     let hasSameKey = false;
     if (hasKey) {
       //如果有key就先把所有的旧节点保存到Map中
@@ -168,14 +181,15 @@ function reconcileChildren(fiber, children) {
       while (oldFiber) {
         //如果有相同key，报错并且跳出遍历，按照普通的方式来diff
         if (oldFibersMap.has(oldFiber.props.key)) {
-          console.error(`Nodes cannot have the same key attribute(${oldFiber.props.key})`);
+          console.error(
+            `Nodes cannot have the same key attribute(${oldFiber.props.key})`
+          );
           hasSameKey = true;
           break;
         } else {
           oldFibersMap.set(oldFiber.props.key, oldFiber);
           oldFiber = oldFiber.siblingFiber;
         }
-
       }
 
       //判断有没有相同的key，没有相同的key才进行key比对
@@ -190,14 +204,35 @@ function reconcileChildren(fiber, children) {
           if (theOld && theOld.type === newChild.type) {
             if (theOld.index >= lastPlaceIndex) {
               lastPlaceIndex = theOld.index;
-              newFiber = createFiber(fiber, theOld, newChild, index, true, "UPDATE");
+              newFiber = createFiber(
+                fiber,
+                theOld,
+                newChild,
+                index,
+                true,
+                "UPDATE"
+              );
             } else {
-              newFiber = createFiber(fiber, theOld, newChild, index, true, "PLACEMENT");
+              newFiber = createFiber(
+                fiber,
+                theOld,
+                newChild,
+                index,
+                true,
+                "PLACEMENT"
+              );
             }
             //只要复用了的就将map中对应的去除掉
             oldFibersMap.delete(newChildKey);
           } else {
-            newFiber = createFiber(fiber, theOld, newChild, index, false, "PLACEMENT");
+            newFiber = createFiber(
+              fiber,
+              theOld,
+              newChild,
+              index,
+              false,
+              "PLACEMENT"
+            );
           }
 
           //如果是第一个子节点，
@@ -222,7 +257,6 @@ function reconcileChildren(fiber, children) {
           deletions.push(value);
         }
       }
-
     }
 
     if (!hasKey || hasSameKey) {
@@ -234,13 +268,28 @@ function reconcileChildren(fiber, children) {
 
       while (index < children.length || oldFiber) {
         const newChild = children[index];
-        const sameType = oldFiber && newChild && oldFiber.type === newChild.type;
+        const sameType =
+          oldFiber && newChild && oldFiber.type === newChild.type;
         let newFiber = null;
         if (sameType) {
-          newFiber = createFiber(fiber, oldFiber, newChild, index, true, "UPDATE");
+          newFiber = createFiber(
+            fiber,
+            oldFiber,
+            newChild,
+            index,
+            true,
+            "UPDATE"
+          );
         } else {
           if (newChild) {
-            newFiber = createFiber(fiber, oldFiber, newChild, index, false, "PLACEMENT");
+            newFiber = createFiber(
+              fiber,
+              oldFiber,
+              newChild,
+              index,
+              false,
+              "PLACEMENT"
+            );
           }
           if (oldFiber) {
             oldFiber.effectTag = "DELETION";
@@ -252,7 +301,7 @@ function reconcileChildren(fiber, children) {
         if (oldFiber) {
           oldFiber = oldFiber.siblingFiber;
         }
-        
+
         if (index === 0) {
           fiber.childFiber = newFiber;
         } else {
@@ -270,9 +319,16 @@ function reconcileChildren(fiber, children) {
       const newChild = children[index];
       let newFiber = null;
       if (newChild) {
-        newFiber = createFiber(fiber, null, newChild, index, false, "PLACEMENT");
+        newFiber = createFiber(
+          fiber,
+          null,
+          newChild,
+          index,
+          false,
+          "PLACEMENT"
+        );
       }
-      
+
       if (index === 0) {
         fiber.childFiber = newFiber;
       } else {
@@ -284,7 +340,6 @@ function reconcileChildren(fiber, children) {
       index++;
     }
   }
-
 }
 
 function createDOM(fiber) {
@@ -364,7 +419,6 @@ function bindRef(fiber) {
 }
 
 function updateClassComponent(fiber) {
-
   if (!fiber.stateNode) {
     //类组件的stateNode不是真实DOM节点
     //而是组件的实例（也就是fiber.type的实例，fiber.type是一个类）
@@ -380,17 +434,17 @@ function updateClassComponent(fiber) {
   //在这里设置而不是在组件实例内部的构造器中设置
   //是因为复用实例时不会执行构造函数，但是每次更新都要同步更新的context
   //不能让context一直是实例构建时获取的初始值
-  fiber.stateNode.context = (fiber.stateNode.constructor.contextType &&
+  fiber.stateNode.context =
+    fiber.stateNode.constructor.contextType &&
     fiber.stateNode.constructor.contextType.Provider &&
-    fiber.stateNode.constructor.contextType.Provider.currentValue);
+    fiber.stateNode.constructor.contextType.Provider.currentValue;
 
   bindRef(fiber);
 
-
   // 保存旧的props
-  const oldProps = fiber.stateNode.props;
+  const oldProps = fiber.stateNode.props || {};
   //如果是复用的旧实例，还要更新上面的props
-  let newProps = fiber.props;
+  let newProps = fiber.props || {};
 
   //保存旧的state
   const oldState = fiber.stateNode.state;
@@ -401,7 +455,13 @@ function updateClassComponent(fiber) {
   //简单比较state和props是否有改变
   // 因为我将所有的children都包装成了数组,数组每次都是不相同的，所以需要单独处理
   //shallowEqual不包括children,children单独进行比对
-  const shouldUpdate = !shallowEqual({...oldProps, children: null }, {...newProps, children: null }) || !compareChildren(oldProps.children, newProps.children) || !shallowEqual(oldState, newState);
+  const shouldUpdate =
+    !shallowEqual(
+      { ...oldProps, children: null },
+      { ...newProps, children: null }
+    ) ||
+    !compareChildren(oldProps.children || [], newProps.children || []) ||
+    !shallowEqual(oldState, newState);
 
   function runGetDerivedStateFromProps() {
     //getDerivedState运行在SCU和render之前
@@ -411,16 +471,18 @@ function updateClassComponent(fiber) {
     if (fiber.stateNode.constructor.getDerivedStateFromProps) {
       const nextProps = newProps;
       const prevState = newState;
-      const returnState = fiber.stateNode.constructor.getDerivedStateFromProps(nextProps, prevState);
+      const returnState = fiber.stateNode.constructor.getDerivedStateFromProps(
+        nextProps,
+        prevState
+      );
       if (returnState) {
         newState = {
           ...newState,
-          ...returnState
+          ...returnState,
         };
       }
     }
   }
-
 
   function updateStateAndProps() {
     //不管怎样，最后都要更新组件实例的props和state为新的props和state
@@ -438,10 +500,13 @@ function updateClassComponent(fiber) {
   let child = null;
   const notFirstReconcile = fiber.alternate;
 
-
-  if(fiber.stateNode && fiber.stateNode._isSuspenseComponent) {
-    const lazyChildren = fiber.props.children.filter(child => {
-      return typeof child.type === "object" && child.type.isLazyComponent && child.type.status === -1;
+  if (fiber.stateNode && fiber.stateNode._isSuspenseComponent) {
+    const lazyChildren = fiber.props.children.filter((child) => {
+      return (
+        typeof child.type === "object" &&
+        child.type.isLazyComponent &&
+        child.type.status === -1
+      );
     });
     fiber.lazyChildren = lazyChildren;
   }
@@ -461,7 +526,8 @@ function updateClassComponent(fiber) {
       //因为在shouldComponentUpdate里需要对新旧props或者新旧state进行比较
       //所以在运行SCU之前不应该更新组件实例的props和state
       //要移到后面进行
-      const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
+      const shouldComponentUpdateReturn =
+        haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
       //不管怎样都要更新state和props，因为SCU返回false只是不渲染，但是state和props还是要更新的
       updateStateAndProps();
       if (shouldComponentUpdateReturn || !haveSCU) {
@@ -484,21 +550,21 @@ function updateClassComponent(fiber) {
         //父组件更新了，但是子组件的props和state没有变化
         //这时也不应该直接重渲染子组件，而是先看看SCU的返回
         runGetDerivedStateFromProps();
-        const haveSCU = fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
-        const shouldComponentUpdateReturn = haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
-        if(shouldComponentUpdateReturn) {
+        const haveSCU =
+          fiber.stateNode && fiber.stateNode.shouldComponentUpdate;
+        const shouldComponentUpdateReturn =
+          haveSCU && fiber.stateNode.shouldComponentUpdate(newProps, newState);
+        if (shouldComponentUpdateReturn) {
           child = fiber.stateNode.render();
         } else {
           child = fiber.alternate.currentChildVNode;
           fiber.SCU = false;
         }
-        
       } else {
         child = fiber.alternate.currentChildVNode;
         fiber.SCU = false;
       }
     }
-
   } else {
     //第一次渲染
     //初次渲染也是要执行getDeFromProps的
@@ -527,7 +593,7 @@ function updateFunctionComponent(fiber) {
   workInProgressFiber.hooks = {
     list: [],
     effects: [],
-    layouts: []
+    layouts: [],
   };
   //调和子节点
   const child = fiber.type(fiber.props);
@@ -543,11 +609,10 @@ function updateHostComponent(fiber) {
 
   const children = fiber && fiber.props && fiber.props.children;
   // 调度子节点
-  if(children) {
+  if (children) {
     reconcileChildren(fiber, Array.isArray(children) ? children : [children]);
   }
 }
-
 
 //调度每个工作单元
 function performUnitOfWork(fiber) {
@@ -563,17 +628,16 @@ function performUnitOfWork(fiber) {
     updateFunctionComponent(fiber);
   } else if (typeof type === "object" && type.isLazyComponent) {
     const child = updateLazyComponent(fiber);
-    if(child) {
+    if (child) {
       reconcileChildren(fiber, [child]);
     }
-  } else if(typeof type === "object" && type.isMemoComponent) {
+  } else if (typeof type === "object" && type.isMemoComponent) {
     updateMemoComponent(fiber);
   } else {
     updateHostComponent(fiber);
   }
 
-  return findNextUnitOfWork(fiber);  
-
+  return findNextUnitOfWork(fiber);
 }
 
 function findNextUnitOfWork(fiber) {
@@ -603,10 +667,9 @@ function findNextUnitOfWork(fiber) {
   }
 }
 
-
 function updateMemoComponent(fiber) {
   let child = null;
-  if(fiber.alternate) {
+  if (fiber.alternate) {
     const compare = fiber.type.compare;
     const oldProps = { ...fiber.alternate.props, children: null };
     const newProps = { ...fiber.props, children: null };
@@ -617,21 +680,23 @@ function updateMemoComponent(fiber) {
     //  我把children全包装成了数组，所以要单独比对
     // 但是问题在于react官方不会包装string或者number为对象，当memo里嵌套的是字符串或者数字时，字符串是可以比对的，所以只要props没变化是不会重渲染的
     //所以我这里要单独比对children，处理文本节点的问题
-    if(compare) {
+    if (compare) {
       //compare与shouldComponentUpdate是相反的，返回true不更新，否则更新
-      if(compare(fiber.alternate.props, fiber.props)) {
+      if (compare(fiber.alternate.props, fiber.props)) {
         child = fiber.alternate.currentChildVNode;
       } else {
         child = fiber.type.component(fiber.props);
       }
     } else {
-      if (shallowEqual(oldProps, newProps) && compareChildren(oldChildren, newChildren)) {
+      if (
+        shallowEqual(oldProps, newProps) &&
+        compareChildren(oldChildren, newChildren)
+      ) {
         child = fiber.alternate.currentChildVNode;
       } else {
         child = fiber.type.component(fiber.props);
       }
     }
-    
   } else {
     child = fiber.type.component(fiber.props);
   }
@@ -639,23 +704,27 @@ function updateMemoComponent(fiber) {
   reconcileChildren(fiber, Array.isArray(child) ? child : [child]);
 }
 
-
-
 function updateLazyComponent(fiber) {
   const parentFiber = fiber.parentFiber;
-  if(!(parentFiber.stateNode && parentFiber.stateNode._isSuspenseComponent)) {
-    console.error("The parentComponent of lazyComponent must be a SuspenseComponent.");
+  if (!(parentFiber.stateNode && parentFiber.stateNode._isSuspenseComponent)) {
+    console.error(
+      "The parentComponent of lazyComponent must be a SuspenseComponent."
+    );
     return;
   }
 
-  if(parentFiber.lazyChildren && parentFiber.lazyChildren.length > 0 && !parentFiber.thenable) {
+  if (
+    parentFiber.lazyChildren &&
+    parentFiber.lazyChildren.length > 0 &&
+    !parentFiber.thenable
+  ) {
     const ctors = [];
     for (let i = 0; i < parentFiber.lazyChildren.length; i++) {
       const lazyChild = parentFiber.lazyChildren[i];
       lazyChild.type.status = 0;
       ctors.push(lazyChild.type.ctor());
     }
-    const thenable = Promise.all(ctors)
+    const thenable = Promise.all(ctors);
     thenable.then((modules) => {
       for (let i = 0; i < modules.length; i++) {
         const module = modules[i];
@@ -674,10 +743,7 @@ function updateLazyComponent(fiber) {
     throw thenable;
   }
 
-  const {
-    status,
-    result
-  } = fiber.type;
+  const { status, result } = fiber.type;
   switch (status) {
     case 1: {
       const Component = result;
@@ -689,10 +755,8 @@ function updateLazyComponent(fiber) {
       throw error;
     }
     default: {
-      
     }
   }
-  
 }
 
 //commit有两个任务
@@ -700,15 +764,19 @@ function updateLazyComponent(fiber) {
 //二是返回下一个Effect
 function commit(workEffect) {
   //首先拿到父Fiber对应的DOM
-  const nearestParentDOMFiber = getNearestParentDOMFiber(workEffect.parentFiber);
-  let nearestParentDOM = nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
+  const nearestParentDOMFiber = getNearestParentDOMFiber(
+    workEffect.parentFiber
+  );
+  let nearestParentDOM =
+    nearestParentDOMFiber && nearestParentDOMFiber.stateNode;
   const nearestChildDOMFiber = getNearestChildDOMFiber(workEffect);
-  const nearestChildDOM = nearestChildDOMFiber && nearestChildDOMFiber.stateNode;
+  const nearestChildDOM =
+    nearestChildDOMFiber && nearestChildDOMFiber.stateNode;
   const effectTag = workEffect.effectTag;
   const type = typeof workEffect.type;
 
   //处理portal
-  if(workEffect.isPortalComponent) {
+  if (workEffect.isPortalComponent) {
     nearestParentDOM = workEffect.portalContainer;
   }
 
@@ -719,7 +787,11 @@ function commit(workEffect) {
     if (workEffect.stateNode && workEffect.stateNode.componentWillUnmount) {
       workEffect.stateNode.componentWillUnmount();
     }
-    if(nearestChildDOM && nearestParentDOM && nearestParentDOM.contains(nearestChildDOM)) {
+    if (
+      nearestChildDOM &&
+      nearestParentDOM &&
+      nearestParentDOM.contains(nearestChildDOM)
+    ) {
       nearestParentDOM.removeChild(nearestChildDOM);
     }
   } else if (type === "function" || type === "object") {
@@ -730,45 +802,73 @@ function commit(workEffect) {
     }
 
     if (workEffect.hooks && workEffect.hooks.effects) {
-      requestIdleCallback(() => {
-        runSideEffect(workEffect.hooks.effects);
-      }, {
-        timeout: 500
-      });
+      requestIdleCallback(
+        () => {
+          runSideEffect(workEffect.hooks.effects);
+        },
+        {
+          timeout: 500,
+        }
+      );
     }
 
-    if (workEffect.stateNode && workEffect.stateNode.componentDidMount && workEffect.effectTag === "PLACEMENT" && !workEffect.alternate) {
+    if (
+      workEffect.stateNode &&
+      workEffect.stateNode.componentDidMount &&
+      workEffect.effectTag === "PLACEMENT" &&
+      !workEffect.alternate
+    ) {
       workEffect.stateNode.componentDidMount();
     }
 
-    if (workEffect.stateNode && workEffect.stateNode.componentDidCatch && workEffect.stateNode.hasRenderError) {
+    if (
+      workEffect.stateNode &&
+      workEffect.stateNode.componentDidCatch &&
+      workEffect.stateNode.hasRenderError
+    ) {
       workEffect.stateNode.componentDidCatch();
       workEffect.stateNode.hasRenderError = false;
     }
 
-    if (workEffect.stateNode && workEffect.stateNode.componentDidUpdate && workEffect.effectTag === "UPDATE" && workEffect.alternate) {
-      workEffect.stateNode.componentDidUpdate(workEffect.stateNode.oldProps, workEffect.stateNode.oldState, workEffect.stateNode.snapshot);
+    if (
+      workEffect.stateNode &&
+      workEffect.stateNode.componentDidUpdate &&
+      workEffect.effectTag === "UPDATE" &&
+      workEffect.alternate
+    ) {
+      workEffect.stateNode.componentDidUpdate(
+        workEffect.stateNode.oldProps,
+        workEffect.stateNode.oldState,
+        workEffect.stateNode.snapshot
+      );
     }
 
-    if(workEffect.stateNode && workEffect.stateNode.callbacks && workEffect.stateNode.callbacks.length > 0) {
-      while(workEffect.stateNode.callbacks.length > 0) {
+    if (
+      workEffect.stateNode &&
+      workEffect.stateNode.callbacks &&
+      workEffect.stateNode.callbacks.length > 0
+    ) {
+      while (workEffect.stateNode.callbacks.length > 0) {
         const callback = workEffect.stateNode.callbacks.shift();
         callback && callback();
       }
     }
-
   } else if (effectTag === "UPDATE") {
     if (workEffect.type === "TEXT_ELEMENT") {
       if (workEffect.alternate.props.value !== workEffect.props.value) {
         workEffect.stateNode.textContent = workEffect.props.value;
       }
     } else {
-      updateDOM(workEffect.stateNode, workEffect.alternate.props, workEffect.props);
+      updateDOM(
+        workEffect.stateNode,
+        workEffect.alternate.props,
+        workEffect.props
+      );
     }
   } else {
-    if(nearestParentDOM && nearestChildDOM) {
+    if (nearestParentDOM && nearestChildDOM) {
       const hostSibling = getHostSibling(workEffect);
-      if(hostSibling) {
+      if (hostSibling) {
         nearestParentDOM.insertBefore(nearestChildDOM, hostSibling);
       } else {
         nearestParentDOM.appendChild(nearestChildDOM);
@@ -799,7 +899,6 @@ function runSideEffect(effects) {
   }
 }
 
-
 function commitRoot() {
   //首先拿到第一个Effect，也就是根Fiber的firstEffect
   //根Fiber也就是执行中的Fiber，即workInProgressRoot
@@ -818,23 +917,30 @@ function commitRoot() {
   //提交阶段
 
   //先提交所有的要删除的节点
-  deletions.forEach(deletion => {
+  deletions.forEach((deletion) => {
     commit(deletion);
   });
 
-
   deletions.length = 0;
-  
+
   //循环commit每一个Effect
   while (workEffect) {
     workEffect = commit(workEffect);
   }
-
 }
 
 function runGetSnapshotBeforeUpdate(fiber) {
-  if ((typeof fiber.type === "function") && fiber.stateNode && fiber.stateNode.constructor._isClassComponent && fiber.alternate && fiber.effectTag === "UPDATE") {
-    const snapshot = fiber.stateNode && fiber.stateNode.getSnapshotBeforeUpdate && fiber.stateNode.getSnapshotBeforeUpdate();
+  if (
+    typeof fiber.type === "function" &&
+    fiber.stateNode &&
+    fiber.stateNode.constructor._isClassComponent &&
+    fiber.alternate &&
+    fiber.effectTag === "UPDATE"
+  ) {
+    const snapshot =
+      fiber.stateNode &&
+      fiber.stateNode.getSnapshotBeforeUpdate &&
+      fiber.stateNode.getSnapshotBeforeUpdate();
     fiber.stateNode.snapshot = snapshot;
   }
   return fiber.nextEffect;
@@ -864,10 +970,9 @@ function doWorkLoop(deadline) {
     //否则就是空闲时间不够了，但还有剩余的工作单元，再次调用requestIdleCallback
     //等待下一次空闲调度
     requestIdleCallback(workLoop, {
-      timeout: 500
+      timeout: 500,
     });
   }
-
 }
 
 function workLoop(deadline) {
@@ -875,10 +980,17 @@ function workLoop(deadline) {
     doWorkLoop(deadline);
   } catch (error) {
     const errorFiber = nextUnitOfWork;
-    const errorBoundaryParent = findErrorBoundaryParent(errorFiber && errorFiber.parentFiber);
-    if(errorBoundaryParent) {
-      if (errorBoundaryParent.stateNode && errorBoundaryParent.stateNode.constructor.getDerivedStateFromError) {
-        const derivedState = errorBoundaryParent.stateNode.constructor.getDerivedStateFromError(error);
+    const errorBoundaryParent = findErrorBoundaryParent(
+      errorFiber && errorFiber.parentFiber
+    );
+    if (errorBoundaryParent) {
+      if (
+        errorBoundaryParent.stateNode &&
+        errorBoundaryParent.stateNode.constructor.getDerivedStateFromError
+      ) {
+        const derivedState = errorBoundaryParent.stateNode.constructor.getDerivedStateFromError(
+          error
+        );
         if (derivedState) {
           if (typeof derivedState !== "object") {
             console.error("derivedState must be an object");
@@ -886,20 +998,27 @@ function workLoop(deadline) {
           }
           errorBoundaryParent.stateNode.state = {
             ...errorBoundaryParent.stateNode.state,
-            ...derivedState
+            ...derivedState,
           };
         }
       }
 
-      if(errorBoundaryParent.stateNode && errorBoundaryParent.stateNode.componentDidCatch) {
+      if (
+        errorBoundaryParent.stateNode &&
+        errorBoundaryParent.stateNode.componentDidCatch
+      ) {
         const componentStackObj = {
-          componentStack: getComponentStack(errorFiber)
+          componentStack: getComponentStack(errorFiber),
         };
 
         errorBoundaryParent.stateNode.hasRenderError = true;
-        errorBoundaryParent.stateNode.componentDidCatch = errorBoundaryParent.stateNode.componentDidCatch.bind(errorBoundaryParent.stateNode, error, componentStackObj);
+        errorBoundaryParent.stateNode.componentDidCatch = errorBoundaryParent.stateNode.componentDidCatch.bind(
+          errorBoundaryParent.stateNode,
+          error,
+          componentStackObj
+        );
       }
-      requestIdleCallback(workLoop, {timeout:500});
+      requestIdleCallback(workLoop, { timeout: 500 });
     } else {
       throw error;
     }
@@ -911,21 +1030,30 @@ function getComponentStack(fiber) {
   while (fiber) {
     const isFunctionType = typeof fiber.type === "function";
     const componentName = isFunctionType ? fiber.type.name : fiber.type;
-    componentName && (stack.push(componentName));
+    componentName && stack.push(componentName);
     fiber = fiber.parentFiber;
   }
 
   let stackStr = "";
   while (stack.length > 1) {
-    stackStr += ("in " + stack.shift() + "(created by " + stack[stack.length - 1] + ")" + "\n");
+    stackStr +=
+      "in " +
+      stack.shift() +
+      "(created by " +
+      stack[stack.length - 1] +
+      ")" +
+      "\n";
   }
-  stackStr += ("in " + stack.shift());
+  stackStr += "in " + stack.shift();
   return stackStr;
 }
 
 function findErrorBoundaryParent(parentFiber) {
-  while(parentFiber) {
-    if(parentFiber.stateNode.constructor.getDerivedStateFromError || parentFiber.stateNode.componentDidCatch) {
+  while (parentFiber) {
+    if (
+      parentFiber.stateNode.constructor.getDerivedStateFromError ||
+      parentFiber.stateNode.componentDidCatch
+    ) {
       return parentFiber;
     }
     parentFiber = parentFiber.parentFiber;
@@ -937,17 +1065,17 @@ export function reconcileRoot(rootFiber) {
   //如果有currentRoot，说明不是第一次渲染
   //那么就给rootFiber的alternate赋值为老的rootFiber
   //alternate可以理解为代替者，也就是新的RootFiber替换旧的RootFiber
-  if(!rootFiber) {
-    if(currentRoot) {
+  if (!rootFiber) {
+    if (currentRoot) {
       rootFiber = {
         ...currentRoot,
-        alternate: currentRoot
-      }
-    } else if(workInProgressRoot) {
+        alternate: currentRoot,
+      };
+    } else if (workInProgressRoot) {
       rootFiber = {
         ...workInProgressRoot,
-        alternate: workInProgressRoot
-      }
+        alternate: workInProgressRoot,
+      };
     }
   }
 
@@ -957,13 +1085,12 @@ export function reconcileRoot(rootFiber) {
   //每次重渲染都将根节点上挂载的effect清除
   //因为如果不传rootFiber进来，那么workInProgress就会复用上次的根Fiber
   //如果上面的effect不清除掉可能会有问题
-  if(currentRoot) {
+  if (currentRoot) {
     workInProgressRoot.firstEffect = workInProgressRoot.lastEffect = workInProgressRoot.nextEffect = null;
   }
 
   // 开始调度
   requestIdleCallback(workLoop, {
-    timeout: 500
+    timeout: 500,
   });
-
 }
